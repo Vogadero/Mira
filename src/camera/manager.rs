@@ -212,11 +212,23 @@ impl CameraManager {
                         self.retry_count = 0;
                     }
                     
-                    // 转换为我们的 Frame 格式
+                    // 获取帧的分辨率
                     let resolution = frame.resolution();
                     let width = resolution.width_x;
                     let height = resolution.height_y;
-                    let data = frame.buffer().to_vec();
+                    
+                    // 尝试解码图像数据（处理 MJPEG 等压缩格式）
+                    let data = match frame.decode_image::<RgbFormat>() {
+                        Ok(decoded_buffer) => {
+                            debug!("成功解码图像数据: {}x{}", width, height);
+                            decoded_buffer.to_vec()
+                        }
+                        Err(decode_err) => {
+                            warn!("解码图像失败: {}，尝试使用原始缓冲区", decode_err);
+                            // 如果解码失败，尝试使用原始缓冲区
+                            frame.buffer().to_vec()
+                        }
+                    };
                     
                     // 验证数据大小
                     let expected_size = (width * height * 3) as usize; // RGB8 格式
