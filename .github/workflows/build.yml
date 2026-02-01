@@ -64,19 +64,11 @@ jobs:
           Write-Host "✓ Binary size within target (<20MB)"
         }
     
-    - name: Create ZIP archive
-      run: |
-        Compress-Archive -Path dist\* -DestinationPath mira-windows-x64.zip
-        
-        # 检查压缩包大小
-        $zipSize = (Get-Item mira-windows-x64.zip).Length / 1MB
-        Write-Host "ZIP size: $([math]::Round($zipSize, 2)) MB"
-    
     - name: Upload Windows artifact
       uses: actions/upload-artifact@v4
       with:
         name: mira-windows-x64
-        path: mira-windows-x64.zip
+        path: dist/
         retention-days: 30
 
   build-macos:
@@ -139,19 +131,11 @@ jobs:
           echo "✓ Binary size within target (<25MB)"
         fi
     
-    - name: Create TAR archive
-      run: |
-        tar -czf mira-macos-x64.tar.gz -C dist .
-        
-        # 检查压缩包大小
-        tarSize=$(du -m mira-macos-x64.tar.gz | cut -f1)
-        echo "TAR size: ${tarSize} MB"
-    
     - name: Upload macOS artifact
       uses: actions/upload-artifact@v4
       with:
         name: mira-macos-x64
-        path: mira-macos-x64.tar.gz
+        path: dist/
         retention-days: 30
 
   build-linux:
@@ -218,19 +202,11 @@ jobs:
           echo "✓ Binary size within target (<30MB)"
         fi
     
-    - name: Create TAR archive
-      run: |
-        tar -czf mira-linux-x64.tar.gz -C dist .
-        
-        # 检查压缩包大小
-        tarSize=$(du -m mira-linux-x64.tar.gz | cut -f1)
-        echo "TAR size: ${tarSize} MB"
-    
     - name: Upload Linux artifact
       uses: actions/upload-artifact@v4
       with:
         name: mira-linux-x64
-        path: mira-linux-x64.tar.gz
+        path: dist/
         retention-days: 30
 
   release:
@@ -247,19 +223,19 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: mira-windows-x64
-        path: ./artifacts
+        path: ./windows-dist
     
     - name: Download macOS artifact
       uses: actions/download-artifact@v4
       with:
         name: mira-macos-x64
-        path: ./artifacts
+        path: ./macos-dist
     
     - name: Download Linux artifact
       uses: actions/download-artifact@v4
       with:
         name: mira-linux-x64
-        path: ./artifacts
+        path: ./linux-dist
     
     - name: Extract version from tag
       id: get_version
@@ -268,8 +244,27 @@ jobs:
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "Version: $VERSION"
     
-    - name: Generate checksums
+    - name: Create release packages
       run: |
+        # 创建 artifacts 目录
+        mkdir -p artifacts
+        
+        # 打包 Windows (ZIP)
+        cd windows-dist
+        zip -r ../artifacts/mira-windows-x64.zip *
+        cd ..
+        
+        # 打包 macOS (TAR.GZ)
+        cd macos-dist
+        tar -czf ../artifacts/mira-macos-x64.tar.gz *
+        cd ..
+        
+        # 打包 Linux (TAR.GZ)
+        cd linux-dist
+        tar -czf ../artifacts/mira-linux-x64.tar.gz *
+        cd ..
+        
+        # 生成校验和
         cd artifacts
         sha256sum mira-windows-x64.zip > checksums.txt
         sha256sum mira-macos-x64.tar.gz >> checksums.txt
@@ -309,7 +304,7 @@ jobs:
           | 🍎 macOS | `mira-macos-x64.tar.gz` | macOS 10.15+ x64/ARM64 |
           | 🐧 Linux | `mira-linux-x64.tar.gz` | Ubuntu 20.04+ / Debian 11+ |
           
-          ### 🚀 快速开始
+          ### � 快速开始
           
           1. **下载**: 选择适合你系统的安装包
           2. **解压**: 解压下载的文件到任意目录
