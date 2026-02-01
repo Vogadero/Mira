@@ -832,7 +832,6 @@ impl RenderEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::shape::{ShapeMask, ShapeType};
 
     #[test]
     fn test_frame_creation() {
@@ -972,11 +971,11 @@ mod tests {
             tex_coords: [0.5, 0.5],
         };
         
-        let bytes = bytemuck::cast_slice(&[vertex]);
+        let bytes: &[u8] = bytemuck::cast_slice(&[vertex]);
         assert_eq!(bytes.len(), std::mem::size_of::<Vertex>());
         
         let uniforms = Uniforms::new();
-        let uniform_bytes = bytemuck::cast_slice(&[uniforms]);
+        let uniform_bytes: &[u8] = bytemuck::cast_slice(&[uniforms]);
         assert_eq!(uniform_bytes.len(), std::mem::size_of::<Uniforms>());
     }
 

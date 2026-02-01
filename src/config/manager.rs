@@ -299,7 +299,6 @@ impl ConfigManager {
 mod tests {
     use super::*;
     use std::fs;
-    use std::path::Path;
 
     #[test]
     fn test_config_manager_creation() {
@@ -329,7 +328,7 @@ mod tests {
 
     #[test]
     fn test_config_validation() {
-        let mut manager = ConfigManager::new().unwrap();
+        let manager = ConfigManager::new().unwrap();
         let mut config = AppConfig {
             version: "1.0".to_string(),
             window: WindowConfig {
@@ -495,7 +494,7 @@ mod tests {
         let manager = ConfigManager::new().unwrap();
         
         // 测试从旧版本迁移
-        let mut old_config = AppConfig {
+        let old_config = AppConfig {
             version: "0.9".to_string(),
             window: WindowConfig {
                 position_x: 100.0,
@@ -526,7 +525,7 @@ mod tests {
                 position_y: f64::INFINITY, // 无效位置
                 width: 50, // 小于最小值
                 height: 5000, // 超过最大值
-                rotation: f64::NAN, // 无效角度
+                rotation: f32::NAN, // 无效角度
                 shape: "".to_string(), // 空形状名称
             },
             camera: CameraConfig { device_index: 999 }, // 过大的设备索引

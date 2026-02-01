@@ -512,8 +512,8 @@ mod tests {
     // 创建测试用的事件处理器
     fn create_test_event_handler() -> Result<EventHandler, Box<dyn std::error::Error>> {
         let event_loop = EventLoop::new()?;
-        let window_manager = WindowManager::new(&event_loop)?;
-        let camera_manager = CameraManager::new().unwrap_or_else(|_| {
+        let _window_manager = WindowManager::new(&event_loop)?;
+        let _camera_manager = CameraManager::new().unwrap_or_else(|_| {
             // 在测试环境中可能没有摄像头，创建一个空的管理器
             CameraManager::new_empty()
         });
@@ -537,7 +537,7 @@ mod tests {
     #[test]
     fn test_modifiers_state() {
         // 测试修饰键状态
-        let mut modifiers = ModifiersState::empty();
+        let modifiers = ModifiersState::empty();
         assert!(!modifiers.control_key());
         
         // 注意：在实际测试中，我们无法直接设置 ModifiersState
@@ -594,11 +594,11 @@ mod tests {
     #[test]
     fn test_keyboard_event_handling() {
         // 测试键盘事件处理逻辑
-        use winit::keyboard::{Key, NamedKey};
+        use winit::keyboard::{Key, NamedKey, SmolStr};
         
-        let f1_key = Key::Named(NamedKey::F1);
-        let space_key = Key::Named(NamedKey::Space);
-        let r_key = Key::Character("r".into());
+        let f1_key: Key<SmolStr> = Key::Named(NamedKey::F1);
+        let space_key: Key<SmolStr> = Key::Named(NamedKey::Space);
+        let r_key: Key<SmolStr> = Key::Character(SmolStr::new("r"));
         
         // 验证键盘按键匹配
         match f1_key {

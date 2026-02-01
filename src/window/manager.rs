@@ -556,7 +556,7 @@ mod tests {
     fn test_scaling() {
         let event_loop = EventLoop::new().unwrap();
         if let Ok(mut manager) = WindowManager::new(&event_loop) {
-            let original_size = manager.size();
+            let _original_size = manager.size();
             
             // 测试放大 10%
             manager.scale(1.1);
@@ -622,7 +622,7 @@ mod tests {
             
             // 测试向上滚轮（放大 10%）
             manager.scale(1.1);
-            let enlarged_size = manager.size();
+            let _enlarged_size = manager.size();
             
             // 测试向下滚轮（缩小约 9.09%，即 1/1.1）
             manager.scale(1.0 / 1.1);

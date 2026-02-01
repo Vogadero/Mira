@@ -1,6 +1,5 @@
 // 窗口管理器测试
 
-use super::*;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 
 /// 测试用的窗口管理器，不需要真实窗口
@@ -324,13 +323,13 @@ mod tests {
             let actual_angle = manager.rotation();
             
             // 考虑自动对齐的影响
-            if (expected_angle - 0.0).abs() <= 5.0 || (expected_angle - 360.0).abs() <= 5.0 {
+            if (expected_angle - 0.0_f32).abs() <= 5.0 || (expected_angle - 360.0_f32).abs() <= 5.0 {
                 assert_eq!(actual_angle, 0.0, "第 {} 次旋转后应该对齐到 0°", i);
-            } else if (expected_angle - 90.0).abs() <= 5.0 {
+            } else if (expected_angle - 90.0_f32).abs() <= 5.0 {
                 assert_eq!(actual_angle, 90.0, "第 {} 次旋转后应该对齐到 90°", i);
-            } else if (expected_angle - 180.0).abs() <= 5.0 {
+            } else if (expected_angle - 180.0_f32).abs() <= 5.0 {
                 assert_eq!(actual_angle, 180.0, "第 {} 次旋转后应该对齐到 180°", i);
-            } else if (expected_angle - 270.0).abs() <= 5.0 {
+            } else if (expected_angle - 270.0_f32).abs() <= 5.0 {
                 assert_eq!(actual_angle, 270.0, "第 {} 次旋转后应该对齐到 270°", i);
             } else {
                 assert_eq!(actual_angle, expected_angle, "第 {} 次旋转后角度不正确", i);
