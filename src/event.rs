@@ -73,7 +73,7 @@ impl EventHandler {
                 false
             }
             WindowEvent::ModifiersChanged(modifiers) => {
-                self.handle_modifiers_changed(*modifiers);
+                self.handle_modifiers_changed(modifiers.state());
                 false
             }
             WindowEvent::KeyboardInput { event, .. } => {

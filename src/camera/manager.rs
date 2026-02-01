@@ -197,10 +197,14 @@ impl CameraManager {
     
     /// 带重试机制的帧捕获
     fn capture_frame_with_retry(&mut self) -> Result<Frame, CameraError> {
-        let camera = self.camera.as_mut().unwrap(); // 已在上层检查过
-        
         for attempt in 0..=self.max_retries {
-            match camera.frame() {
+            // 每次尝试都重新获取 camera 的可变引用
+            let frame_result = {
+                let camera = self.camera.as_mut().unwrap(); // 已在上层检查过
+                camera.frame()
+            };
+            
+            match frame_result {
                 Ok(frame) => {
                     // 捕获成功，重置重试计数器
                     if self.retry_count > 0 {
