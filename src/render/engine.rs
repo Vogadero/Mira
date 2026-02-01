@@ -607,9 +607,33 @@ impl RenderEngine {
         // 创建或更新纹理绑定组
         if self.video_bind_group.is_none() {
             debug!("创建纹理绑定组");
+            // 避免借用冲突，直接在这里创建绑定组
             let video_texture = self.video_texture.as_ref().unwrap();
             let mask_texture = self.mask_texture.as_ref().unwrap();
-            self.update_bind_group(video_texture, mask_texture);
+            
+            let video_view = video_texture.create_view(&wgpu::TextureViewDescriptor::default());
+            let mask_view = mask_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+            self.video_bind_group = Some(self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &self.bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&video_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::TextureView(&mask_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: wgpu::BindingResource::Sampler(&self.sampler),
+                    },
+                ],
+                label: Some("video_bind_group"),
+            }));
+            
+            debug!("纹理绑定组创建完成");
         }
 
         // 获取表面纹理

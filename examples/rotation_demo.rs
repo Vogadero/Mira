@@ -3,7 +3,8 @@
 use log::{error, info};
 use winit::{
     dpi::PhysicalPosition,
-    event::{Event, WindowEvent, ElementState, MouseButton, ModifiersState},
+    event::{Event, WindowEvent, ElementState, MouseButton},
+    keyboard::ModifiersState,
     event_loop::{ControlFlow, EventLoop},
 };
 use mira::window::WindowManager;

@@ -12,7 +12,8 @@ use mira::{
 };
 use std::time::{Duration, Instant};
 use winit::{
-    event::{WindowEvent, MouseButton, ElementState, MouseScrollDelta, ModifiersState},
+    event::{WindowEvent, MouseButton, ElementState, MouseScrollDelta},
+    keyboard::ModifiersState,
     dpi::{PhysicalPosition, PhysicalSize},
     event_loop::EventLoop,
 };

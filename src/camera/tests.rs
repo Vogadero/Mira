@@ -253,37 +253,47 @@ mod error_handling_tests {
         use nokhwa::NokhwaError;
         
         // 测试设备被占用错误
-        let error = NokhwaError::UnsupportedOperationError("Device busy".to_string());
+        let error = NokhwaError::UnsupportedOperationError(nokhwa::utils::ApiBackend::Auto);
         let mapped = CameraManager::map_nokhwa_error(error);
         assert!(matches!(mapped, CameraError::DeviceInUse));
         
         // 测试权限拒绝错误
-        let error = NokhwaError::GetPropertyError("Permission denied".to_string());
+        let error = NokhwaError::GetPropertyError { 
+            property: "test".to_string(), 
+            error: "Permission denied".to_string() 
+        };
         let mapped = CameraManager::map_nokhwa_error(error);
         assert!(matches!(mapped, CameraError::PermissionDenied));
         
         // 测试设置属性权限错误
-        let error = NokhwaError::SetPropertyError("Access denied".to_string());
+        let error = NokhwaError::SetPropertyError { 
+            property: "test".to_string(), 
+            value: "test".to_string(), 
+            error: "Access denied".to_string() 
+        };
         let mapped = CameraManager::map_nokhwa_error(error);
         assert!(matches!(mapped, CameraError::PermissionDenied));
         
         // 测试打开设备错误 - 权限相关
-        let error = NokhwaError::OpenDeviceError("Permission denied".to_string());
+        let error = NokhwaError::OpenDeviceError("Permission denied".to_string(), "test".to_string());
         let mapped = CameraManager::map_nokhwa_error(error);
         assert!(matches!(mapped, CameraError::PermissionDenied));
         
         // 测试打开设备错误 - 设备被占用
-        let error = NokhwaError::OpenDeviceError("Device is busy".to_string());
+        let error = NokhwaError::OpenDeviceError("Device is busy".to_string(), "test".to_string());
         let mapped = CameraManager::map_nokhwa_error(error);
         assert!(matches!(mapped, CameraError::DeviceInUse));
         
         // 测试打开设备错误 - 其他错误
-        let error = NokhwaError::OpenDeviceError("Unknown error".to_string());
+        let error = NokhwaError::OpenDeviceError("Unknown error".to_string(), "test".to_string());
         let mapped = CameraManager::map_nokhwa_error(error);
         assert!(matches!(mapped, CameraError::CaptureError(_)));
         
         // 测试结构化错误
-        let error = NokhwaError::StructureError("Invalid structure".to_string());
+        let error = NokhwaError::StructureError { 
+            structure: "test".to_string(), 
+            error: "Invalid structure".to_string() 
+        };
         let mapped = CameraManager::map_nokhwa_error(error);
         assert!(matches!(mapped, CameraError::CaptureError(_)));
         
@@ -293,13 +303,20 @@ mod error_handling_tests {
         assert!(matches!(mapped, CameraError::CaptureError(_)));
         
         // 测试处理帧错误
-        let error = NokhwaError::ProcessFrameError("Process failed".to_string());
+        let error = NokhwaError::ProcessFrameError { 
+            src: nokhwa::utils::FrameFormat::MJPEG, 
+            destination: "RGB".to_string(), 
+            error: "Process failed".to_string() 
+        };
         let mapped = CameraManager::map_nokhwa_error(error);
         assert!(matches!(mapped, CameraError::CaptureError(_)));
         
         // 测试通用错误
         let error = NokhwaError::GeneralError("General error".to_string());
         let mapped = CameraManager::map_nokhwa_error(error);
+        assert!(matches!(mapped, CameraError::CaptureError(_)));
+    }
+}
         assert!(matches!(mapped, CameraError::CaptureError(_)));
     }
 

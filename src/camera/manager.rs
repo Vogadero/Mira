@@ -209,9 +209,10 @@ impl CameraManager {
                     }
                     
                     // 转换为我们的 Frame 格式
-                    let width = frame.width() as u32;
-                    let height = frame.height() as u32;
-                    let data = frame.into_raw();
+                    let resolution = frame.resolution();
+                    let width = resolution.width_x;
+                    let height = resolution.height_y;
+                    let data = frame.buffer().to_vec();
                     
                     debug!("成功捕获帧: {}x{}, {} 字节", width, height, data.len());
                     
@@ -299,12 +300,31 @@ impl CameraManager {
                 warn!("处理帧错误: {}", error);
                 CameraError::CaptureError(format!("处理帧失败: {}", error))
             }
+            // 初始化错误
+            nokhwa::NokhwaError::InitializeError { backend: _, error } => {
+                error!("摄像头初始化错误: {}", error);
+                CameraError::CaptureError(format!("初始化失败: {}", error))
+            }
+            // 流相关错误
+            nokhwa::NokhwaError::OpenStreamError(msg) => {
+                error!("打开视频流失败: {}", msg);
+                CameraError::CaptureError(format!("打开流失败: {}", msg))
+            }
+            nokhwa::NokhwaError::StreamShutdownError(msg) => {
+                warn!("关闭视频流错误: {}", msg);
+                CameraError::CaptureError(format!("关闭流失败: {}", msg))
+            }
             // 通用错误
             nokhwa::NokhwaError::GeneralError(msg) => {
                 error!("摄像头通用错误: {}", msg);
                 CameraError::CaptureError(format!("通用错误: {}", msg))
             }
-            // 其他未知错误
+            // 未实现错误
+            nokhwa::NokhwaError::NotImplementedError(msg) => {
+                error!("摄像头功能未实现: {}", msg);
+                CameraError::CaptureError(format!("功能未实现: {}", msg))
+            }
+            // 其他错误
             _ => {
                 error!("未知的摄像头错误: {}", error);
                 CameraError::CaptureError(format!("未知错误: {}", error))
@@ -548,17 +568,35 @@ mod tests {
         use nokhwa::NokhwaError;
         
         // 测试设备被占用错误
-        let error = NokhwaError::UnsupportedOperationError("Device busy".to_string());
+        let error = NokhwaError::UnsupportedOperationError(nokhwa::utils::ApiBackend::Auto);
         let mapped = CameraManager::map_nokhwa_error(error);
         assert!(matches!(mapped, CameraError::DeviceInUse));
         
         // 测试权限拒绝错误
-        let error = NokhwaError::GetPropertyError("Permission denied".to_string());
+        let error = NokhwaError::GetPropertyError { 
+            property: "test".to_string(), 
+            error: "Permission denied".to_string() 
+        };
         let mapped = CameraManager::map_nokhwa_error(error);
         assert!(matches!(mapped, CameraError::PermissionDenied));
         
         // 测试通用错误
         let error = NokhwaError::GeneralError("General error".to_string());
+        let mapped = CameraManager::map_nokhwa_error(error);
+        assert!(matches!(mapped, CameraError::CaptureError(_)));
+        
+        // 测试打开设备错误 - 权限相关
+        let error = NokhwaError::OpenDeviceError("Permission denied".to_string(), "test".to_string());
+        let mapped = CameraManager::map_nokhwa_error(error);
+        assert!(matches!(mapped, CameraError::PermissionDenied));
+        
+        // 测试打开设备错误 - 设备被占用
+        let error = NokhwaError::OpenDeviceError("Device is busy".to_string(), "test".to_string());
+        let mapped = CameraManager::map_nokhwa_error(error);
+        assert!(matches!(mapped, CameraError::DeviceInUse));
+        
+        // 测试读取帧错误
+        let error = NokhwaError::ReadFrameError("Read failed".to_string());
         let mapped = CameraManager::map_nokhwa_error(error);
         assert!(matches!(mapped, CameraError::CaptureError(_)));
     }

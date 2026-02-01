@@ -7,10 +7,11 @@ use winit::{
     window::{Window, WindowBuilder, WindowLevel},
 };
 use log::{info, warn, error};
+use std::sync::Arc;
 
 /// 窗口管理器
 pub struct WindowManager {
-    window: Window,
+    window: Arc<Window>,
     position: PhysicalPosition<f64>,
     size: PhysicalSize<u32>,
     rotation: f32,
@@ -45,7 +46,7 @@ impl WindowManager {
         info!("窗口创建成功，尺寸: {:?}, 位置: {:?}", default_size, default_position);
         
         Ok(Self {
-            window,
+            window: Arc::new(window),
             position: default_position,
             size: default_size,
             rotation: 0.0,
@@ -55,8 +56,8 @@ impl WindowManager {
     }
     
     /// 获取窗口引用
-    pub fn window(&self) -> &Window {
-        &self.window
+    pub fn window(&self) -> Arc<Window> {
+        Arc::clone(&self.window)
     }
     
     /// 设置窗口位置
