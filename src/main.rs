@@ -23,10 +23,11 @@ use shape::{ShapeMask, ShapeType};
 use window::WindowManager;
 
 use log::{debug, error, info, warn};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use winit::{
     event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
 };
 
 /// 应用程序主结构
