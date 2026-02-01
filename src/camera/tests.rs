@@ -316,9 +316,6 @@ mod error_handling_tests {
         let mapped = CameraManager::map_nokhwa_error(error);
         assert!(matches!(mapped, CameraError::CaptureError(_)));
     }
-}
-        assert!(matches!(mapped, CameraError::CaptureError(_)));
-    }
 
     #[test]
     fn test_permission_check() {
