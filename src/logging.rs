@@ -195,7 +195,6 @@ fn get_memory_info() -> Result<MemoryInfo, Box<dyn std::error::Error>> {
     {
         // Windows 实现
         use std::mem;
-        use std::ptr;
         
         #[repr(C)]
         struct MemoryStatusEx {

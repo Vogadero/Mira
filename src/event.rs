@@ -8,8 +8,8 @@ use crate::window::WindowManager;
 use log::{debug, error, info, warn};
 use winit::{
     dpi::PhysicalPosition,
-    event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta, WindowEvent},
-    keyboard::{Key, NamedKey, ModifiersState},
+    event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta, WindowEvent, ModifiersState},
+    keyboard::{Key, NamedKey},
 };
 
 /// 事件处理器
@@ -515,14 +515,7 @@ mod tests {
         let window_manager = WindowManager::new(&event_loop)?;
         let camera_manager = CameraManager::new().unwrap_or_else(|_| {
             // 在测试环境中可能没有摄像头，创建一个空的管理器
-            CameraManager {
-                camera: None,
-                devices: vec![],
-                current_device_index: None,
-                is_capturing: false,
-                retry_count: 0,
-                max_retries: 3,
-            }
+            CameraManager::new_empty()
         });
         
         // 由于无法在测试中创建真实的渲染引擎，我们跳过这个测试

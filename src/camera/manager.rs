@@ -4,7 +4,7 @@ use crate::error::CameraError;
 use nokhwa::{
     pixel_format::RgbFormat,
     utils::{CameraIndex, RequestedFormat, RequestedFormatType},
-    CallbackCamera,
+    Camera,
 };
 use log::{debug, error, info, warn};
 
@@ -35,7 +35,7 @@ pub enum PixelFormat {
 
 /// 摄像头管理器
 pub struct CameraManager {
-    camera: Option<CallbackCamera>,
+    camera: Option<Camera>,
     devices: Vec<CameraInfo>,
     current_device_index: Option<usize>,
     is_capturing: bool,
@@ -137,7 +137,7 @@ impl CameraManager {
         );
         
         // 尝试打开摄像头
-        let camera = CallbackCamera::new(camera_index, requested_format, |_| {})
+        let camera = Camera::new(camera_index, requested_format)
             .map_err(|e| {
                 error!("打开摄像头设备 {} 失败: {}", index, e);
                 Self::map_nokhwa_error(e)
@@ -348,7 +348,7 @@ impl CameraManager {
             RequestedFormatType::AbsoluteHighestFrameRate
         );
         
-        match CallbackCamera::new(camera_index, requested_format, |_| {}) {
+        match Camera::new(camera_index, requested_format) {
             Ok(_) => {
                 debug!("设备 {} 可用", index);
                 false
@@ -502,14 +502,7 @@ mod tests {
     #[test]
     fn test_invalid_device_index() {
         // 创建一个空的摄像头管理器用于测试
-        let mut manager = CameraManager {
-            camera: None,
-            devices: vec![],
-            current_device_index: None,
-            is_capturing: false,
-            retry_count: 0,
-            max_retries: 3,
-        };
+        let mut manager = CameraManager::new_empty();
         
         // 尝试打开不存在的设备应该返回错误
         let result = manager.open_device(999);
@@ -519,14 +512,7 @@ mod tests {
     #[test]
     fn test_capture_without_device() {
         // 创建一个没有打开设备的摄像头管理器
-        let mut manager = CameraManager {
-            camera: None,
-            devices: vec![],
-            current_device_index: None,
-            is_capturing: false,
-            retry_count: 0,
-            max_retries: 3,
-        };
+        let mut manager = CameraManager::new_empty();
         
         // 尝试捕获帧应该返回错误
         let result = manager.capture_frame();
@@ -536,14 +522,7 @@ mod tests {
     #[test]
     fn test_close_device_without_open() {
         // 创建一个没有打开设备的摄像头管理器
-        let mut manager = CameraManager {
-            camera: None,
-            devices: vec![],
-            current_device_index: None,
-            is_capturing: false,
-            retry_count: 0,
-            max_retries: 3,
-        };
+        let mut manager = CameraManager::new_empty();
         
         // 关闭不存在的设备应该成功（无操作）
         let result = manager.close_device();
@@ -553,14 +532,7 @@ mod tests {
     #[test]
     fn test_retry_mechanism() {
         // 测试重试机制的配置
-        let mut manager = CameraManager {
-            camera: None,
-            devices: vec![],
-            current_device_index: None,
-            is_capturing: false,
-            retry_count: 0,
-            max_retries: 3,
-        };
+        let mut manager = CameraManager::new_empty();
         
         assert_eq!(manager.retry_count(), 0);
         assert_eq!(manager.max_retries(), 3);

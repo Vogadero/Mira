@@ -144,7 +144,7 @@ const INDICES: &[u16] = &[
 
 impl RenderEngine {
     /// 创建新的渲染引擎
-    pub async fn new(window: &Window) -> Result<Self, RenderError> {
+    pub async fn new(window: Arc<Window>) -> Result<Self, RenderError> {
         info!("开始初始化渲染引擎");
         let size = window.inner_size();
         info!("窗口尺寸: {}x{}", size.width, size.height);
@@ -158,7 +158,7 @@ impl RenderEngine {
 
         // 创建表面
         debug!("创建渲染表面");
-        let surface = instance.create_surface(window)
+        let surface = instance.create_surface(window.clone())
             .map_err(|e| {
                 error!("创建渲染表面失败: {}", e);
                 RenderError::InitializationFailed(format!("创建表面失败: {}", e))

@@ -463,7 +463,6 @@ impl MemoryUsageMonitor {
     #[cfg(target_os = "windows")]
     fn measure_memory_usage(&self) -> f32 {
         use std::mem;
-        use std::ptr;
         
         #[repr(C)]
         struct ProcessMemoryCounters {
