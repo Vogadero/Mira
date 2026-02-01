@@ -93,6 +93,20 @@ impl WindowManager {
         }
     }
     
+    /// 更新窗口尺寸（仅更新内部状态，不触发窗口调整）
+    /// 用于响应窗口系统的 Resized 事件，避免无限循环
+    pub fn update_size(&mut self, width: u32, height: u32) {
+        let new_size = PhysicalSize::new(width, height);
+        
+        // 验证尺寸有效性
+        if self.is_valid_size(new_size) {
+            self.size = new_size;
+            info!("窗口尺寸更新为: {}x{}", width, height);
+        } else {
+            warn!("无效的窗口尺寸: {}x{}", width, height);
+        }
+    }
+    
     /// 获取窗口尺寸
     pub fn size(&self) -> PhysicalSize<u32> {
         self.size

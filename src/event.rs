@@ -300,8 +300,8 @@ impl EventHandler {
     fn handle_resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {
         info!("窗口尺寸变化: {}x{}", size.width, size.height);
         
-        // 更新窗口管理器的尺寸
-        self.window_manager.set_size(size.width, size.height);
+        // 更新窗口管理器的尺寸（仅更新内部状态，不触发新的 Resized 事件）
+        self.window_manager.update_size(size.width, size.height);
         
         // 调整渲染表面
         self.render_engine.resize(size.width, size.height);
