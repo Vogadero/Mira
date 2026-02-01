@@ -385,7 +385,6 @@ impl CameraManager {
             Err(CameraError::CaptureError("没有可用的摄像头设备".to_string()))
         }
     }
-    }
 
     /// 获取当前设备信息
     pub fn current_device(&self) -> Option<&CameraInfo> {
