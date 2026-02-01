@@ -441,6 +441,11 @@ impl RenderEngine {
                     warn!("使用之前的表面配置进行恢复");
                 }
             }
+            
+            // 清除绑定组，强制在下次渲染时重新创建
+            // 这确保了纹理尺寸与表面尺寸的一致性
+            self.video_bind_group = None;
+            debug!("已清除视频绑定组，将在下次渲染时重新创建");
         } else {
             warn!("无效的表面尺寸: {}x{}，忽略调整请求", width, height);
         }
@@ -457,6 +462,17 @@ impl RenderEngine {
                 e
             })?;
         
+        debug!("转换后的 RGBA 数据大小: {} 字节 (期望: {} 字节)", 
+               rgba_data.len(), frame.width * frame.height * 4);
+        
+        // 验证数据大小
+        let expected_size = (frame.width * frame.height * 4) as usize;
+        if rgba_data.len() != expected_size {
+            error!("RGBA 数据大小不匹配: 实际 {} 字节, 期望 {} 字节", 
+                   rgba_data.len(), expected_size);
+            return Err(RenderError::TextureUploadFailed);
+        }
+        
         // 创建或更新视频纹理
         let texture_size = wgpu::Extent3d {
             width: frame.width,
@@ -468,12 +484,17 @@ impl RenderEngine {
         let need_new_texture = self.video_texture.as_ref()
             .map(|t| {
                 let size = t.size();
-                size.width != frame.width || size.height != frame.height
+                let needs_update = size.width != frame.width || size.height != frame.height;
+                if needs_update {
+                    info!("视频纹理尺寸不匹配: 当前 {}x{}, 需要 {}x{}", 
+                          size.width, size.height, frame.width, frame.height);
+                }
+                needs_update
             })
             .unwrap_or(true);
 
         if need_new_texture {
-            debug!("创建新的视频纹理: {}x{}", frame.width, frame.height);
+            info!("创建新的视频纹理: {}x{}", frame.width, frame.height);
             
             self.video_texture = Some(self.device.create_texture(&wgpu::TextureDescriptor {
                 size: texture_size,
@@ -486,12 +507,15 @@ impl RenderEngine {
                 view_formats: &[],
             }));
             
-            debug!("视频纹理创建成功");
+            // 清除绑定组，强制重新创建
+            self.video_bind_group = None;
+            info!("视频纹理创建成功，已清除绑定组");
         }
 
         // 上传数据到纹理
         if let Some(texture) = &self.video_texture {
-            debug!("上传 {} 字节数据到视频纹理", rgba_data.len());
+            debug!("准备上传 {} 字节数据到 {}x{} 视频纹理", 
+                   rgba_data.len(), frame.width, frame.height);
             
             self.queue.write_texture(
                 wgpu::ImageCopyTexture {
@@ -508,6 +532,8 @@ impl RenderEngine {
                 },
                 texture_size,
             );
+            
+            debug!("视频帧上传成功");
         }
 
         Ok(())
