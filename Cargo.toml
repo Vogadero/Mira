@@ -41,7 +41,7 @@ path = "examples/rotation_demo.rs"
 
 [dependencies]
 # 摄像头捕获
-nokhwa = { version = "0.10", features = ["input-native"] }
+nokhwa = { version = "0.10", features = ["input-native", "output-threaded"] }
 
 # 窗口管理
 winit = "0.29"

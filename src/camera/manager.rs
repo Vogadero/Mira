@@ -3,8 +3,8 @@
 use crate::error::CameraError;
 use nokhwa::{
     pixel_format::RgbFormat,
-    utils::{CameraIndex, RequestedFormat, RequestedFormatType, Resolution},
-    Camera, CallbackCamera,
+    utils::{CameraIndex, RequestedFormat, RequestedFormatType},
+    CallbackCamera,
 };
 use log::{debug, error, info, warn};
 
@@ -159,9 +159,7 @@ impl CameraManager {
             
             // 停止视频流
             if self.is_capturing {
-                if let Err(e) = camera.stop_stream() {
-                    warn!("停止视频流时出现警告: {}", e);
-                }
+                let _ = camera.stop_stream();
                 self.is_capturing = false;
             }
             
@@ -211,8 +209,8 @@ impl CameraManager {
                     }
                     
                     // 转换为我们的 Frame 格式
-                    let width = frame.width();
-                    let height = frame.height();
+                    let width = frame.width() as u32;
+                    let height = frame.height() as u32;
                     let data = frame.into_raw();
                     
                     debug!("成功捕获帧: {}x{}, {} 字节", width, height, data.len());
@@ -261,7 +259,7 @@ impl CameraManager {
                 warn!("摄像头设备不支持请求的操作，可能被其他应用占用");
                 CameraError::DeviceInUse
             }
-            nokhwa::NokhwaError::OpenDeviceError(msg) => {
+            nokhwa::NokhwaError::OpenDeviceError(msg, _) => {
                 if msg.to_lowercase().contains("permission") || 
                    msg.to_lowercase().contains("access") ||
                    msg.to_lowercase().contains("denied") {
@@ -278,18 +276,18 @@ impl CameraManager {
                 }
             }
             // 权限相关错误
-            nokhwa::NokhwaError::GetPropertyError(_) => {
-                warn!("无法获取摄像头属性，可能是权限问题");
+            nokhwa::NokhwaError::GetPropertyError { property: _, error } => {
+                warn!("无法获取摄像头属性，可能是权限问题: {}", error);
                 CameraError::PermissionDenied
             }
-            nokhwa::NokhwaError::SetPropertyError(_) => {
-                warn!("无法设置摄像头属性，可能是权限问题");
+            nokhwa::NokhwaError::SetPropertyError { property: _, value: _, error } => {
+                warn!("无法设置摄像头属性，可能是权限问题: {}", error);
                 CameraError::PermissionDenied
             }
             // 结构化错误
-            nokhwa::NokhwaError::StructureError(msg) => {
-                error!("摄像头结构错误: {}", msg);
-                CameraError::CaptureError(format!("设备结构错误: {}", msg))
+            nokhwa::NokhwaError::StructureError { structure: _, error } => {
+                error!("摄像头结构错误: {}", error);
+                CameraError::CaptureError(format!("设备结构错误: {}", error))
             }
             // 读取错误
             nokhwa::NokhwaError::ReadFrameError(msg) => {
@@ -297,9 +295,9 @@ impl CameraManager {
                 CameraError::CaptureError(format!("读取帧失败: {}", msg))
             }
             // 处理错误
-            nokhwa::NokhwaError::ProcessFrameError(msg) => {
-                warn!("处理帧错误: {}", msg);
-                CameraError::CaptureError(format!("处理帧失败: {}", msg))
+            nokhwa::NokhwaError::ProcessFrameError { src: _, destination: _, error } => {
+                warn!("处理帧错误: {}", error);
+                CameraError::CaptureError(format!("处理帧失败: {}", error))
             }
             // 通用错误
             nokhwa::NokhwaError::GeneralError(msg) => {
@@ -368,9 +366,7 @@ impl CameraManager {
             debug!("尝试重启视频流");
             
             // 停止当前流
-            if let Err(e) = camera.stop_stream() {
-                warn!("停止视频流时出现警告: {}", e);
-            }
+            let _ = camera.stop_stream();
             
             // 重新开始流
             camera.open_stream()

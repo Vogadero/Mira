@@ -1,6 +1,6 @@
 // 日志系统配置和管理
 
-use log::{error, info, warn, LevelFilter};
+use log::{info, warn, LevelFilter};
 use std::fs;
 use std::path::PathBuf;
 

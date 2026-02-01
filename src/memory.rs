@@ -298,7 +298,7 @@ impl TextureManager {
               max_cached_textures, cleanup_interval);
         
         Self {
-            texture_cache: vec![None; max_cached_textures],
+            texture_cache: (0..max_cached_textures).map(|_| None).collect(),
             max_cached_textures,
             texture_usage: vec![0; max_cached_textures],
             last_cleanup: Instant::now(),
@@ -312,25 +312,25 @@ impl TextureManager {
         device: &wgpu::Device,
         descriptor: &wgpu::TextureDescriptor,
     ) -> Option<&wgpu::Texture> {
-        // 查找匹配的缓存纹理
-        for (i, cached_texture) in self.texture_cache.iter().enumerate() {
-            if let Some(texture) = cached_texture {
+        // 首先查找匹配的缓存纹理
+        for i in 0..self.texture_cache.len() {
+            if let Some(ref texture) = self.texture_cache[i] {
                 if self.texture_matches_descriptor(texture, descriptor) {
                     self.texture_usage[i] += 1;
                     debug!("重用缓存纹理 {}, 使用次数: {}", i, self.texture_usage[i]);
-                    return Some(texture);
+                    return self.texture_cache[i].as_ref();
                 }
             }
         }
         
         // 查找空闲槽位
-        for (i, cached_texture) in self.texture_cache.iter_mut().enumerate() {
-            if cached_texture.is_none() {
+        for i in 0..self.texture_cache.len() {
+            if self.texture_cache[i].is_none() {
                 let new_texture = device.create_texture(descriptor);
-                *cached_texture = Some(new_texture);
+                self.texture_cache[i] = Some(new_texture);
                 self.texture_usage[i] = 1;
                 debug!("创建新纹理并缓存到槽位 {}", i);
-                return cached_texture.as_ref();
+                return self.texture_cache[i].as_ref();
             }
         }
         

@@ -34,12 +34,6 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-cargo-
     
-    - name: Install dependencies
-      run: |
-        # 确保有必要的工具
-        rustc --version
-        cargo --version
-    
     - name: Build release
       run: |
         cargo build --release --verbose
@@ -309,45 +303,3 @@ jobs:
           详细使用说明请参考 [README.md](https://github.com/Vogadero/Mira/blob/main/README.md)
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  benchmark:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        toolchain: stable
-    
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          build-essential \
-          pkg-config \
-          libssl-dev \
-          libudev-dev \
-          libv4l-dev
-    
-    - name: Cache cargo registry
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: benchmark-${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-    
-    - name: Run benchmarks
-      run: |
-        cargo bench --verbose
-    
-    - name: Upload benchmark results
-      uses: actions/upload-artifact@v4
-      with:
-        name: benchmark-results
-        path: target/criterion/
-        retention-days: 7

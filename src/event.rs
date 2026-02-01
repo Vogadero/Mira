@@ -9,8 +9,7 @@ use log::{debug, error, info, warn};
 use winit::{
     dpi::PhysicalPosition,
     event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta, WindowEvent},
-    keyboard::{Key, NamedKey},
-    event::ModifiersState,
+    keyboard::{Key, NamedKey, ModifiersState},
 };
 
 /// 事件处理器
@@ -370,23 +369,22 @@ impl EventHandler {
     
     /// 切换摄像头设备
     fn switch_camera_device(&mut self) {
-        let devices = self.camera_manager.devices();
-        if devices.is_empty() {
+        let devices_len = self.camera_manager.devices().len();
+        if devices_len == 0 {
             warn!("没有可用的摄像头设备");
             return;
         }
         
         let current_index = self.camera_manager.current_device_index().unwrap_or(0);
-        let next_index = (current_index + 1) % devices.len();
+        let next_index = (current_index + 1) % devices_len;
         
         info!("切换摄像头设备: {} -> {}", current_index, next_index);
         
         if let Err(e) = self.camera_manager.open_device(next_index) {
             error!("切换摄像头设备失败: {}", e);
         } else {
-            info!("成功切换到摄像头设备 {}: {}", 
-                  next_index, 
-                  devices[next_index].name);
+            let device_name = self.camera_manager.devices()[next_index].name.clone();
+            info!("成功切换到摄像头设备 {}: {}", next_index, device_name);
         }
     }
     
@@ -459,8 +457,19 @@ impl EventHandler {
             }
         };
         
-        // 上传帧到 GPU
-        if let Err(e) = self.render_engine.upload_frame(&frame) {
+        // 上传帧到 GPU - 转换 Frame 类型
+        let render_frame = crate::render::engine::Frame {
+            data: frame.data,
+            width: frame.width,
+            height: frame.height,
+            format: match frame.format {
+                crate::camera::manager::PixelFormat::RGB8 => crate::render::engine::PixelFormat::RGB8,
+                crate::camera::manager::PixelFormat::RGBA8 => crate::render::engine::PixelFormat::RGBA8,
+                crate::camera::manager::PixelFormat::YUV420 => crate::render::engine::PixelFormat::YUV420,
+            },
+        };
+        
+        if let Err(e) = self.render_engine.upload_frame(&render_frame) {
             error!("上传视频帧到 GPU 失败: {}", e);
             return Err(format!("GPU 上传失败: {}", e));
         }

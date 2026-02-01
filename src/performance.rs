@@ -1,6 +1,6 @@
 // 性能监控模块
 
-use log::{debug, info, warn, error};
+use log::{debug, info, warn};
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
@@ -558,35 +558,35 @@ impl PerformanceAlert {
     pub fn severity(&self) -> AlertSeverity {
         match self {
             PerformanceAlert::LowFps { current, threshold } => {
-                if current < threshold * 0.5 {
+                if *current < threshold * 0.5 {
                     AlertSeverity::Critical
                 } else {
                     AlertSeverity::Warning
                 }
             }
             PerformanceAlert::HighCpu { current, threshold } => {
-                if current > threshold * 2.0 {
+                if *current > threshold * 2.0 {
                     AlertSeverity::Critical
                 } else {
                     AlertSeverity::Warning
                 }
             }
             PerformanceAlert::HighMemory { current, threshold } => {
-                if current > threshold * 1.5 {
+                if *current > threshold * 1.5 {
                     AlertSeverity::Critical
                 } else {
                     AlertSeverity::Warning
                 }
             }
             PerformanceAlert::SlowFrame { current, threshold } => {
-                if current > threshold * 2.0 {
+                if *current > threshold * 2.0 {
                     AlertSeverity::Critical
                 } else {
                     AlertSeverity::Warning
                 }
             }
             PerformanceAlert::SlowRender { current, threshold } => {
-                if current > threshold * 2.0 {
+                if *current > threshold * 2.0 {
                     AlertSeverity::Critical
                 } else {
                     AlertSeverity::Warning

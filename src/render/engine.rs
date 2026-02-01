@@ -337,6 +337,7 @@ impl RenderEngine {
                 module: &shader,
                 entry_point: "vs_main",
                 buffers: &[Vertex::desc()],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -346,6 +347,7 @@ impl RenderEngine {
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
             }),
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList,
@@ -584,16 +586,17 @@ impl RenderEngine {
         debug!("开始渲染帧，旋转角度: {:.1}°", rotation.to_degrees());
         
         // 检查是否有视频纹理和遮罩纹理
-        let video_texture = self.video_texture.as_ref()
-            .ok_or_else(|| {
-                error!("渲染失败：没有视频纹理");
-                RenderError::RenderFailed("没有视频纹理".to_string())
-            })?;
-        let mask_texture = self.mask_texture.as_ref()
-            .ok_or_else(|| {
-                error!("渲染失败：没有遮罩纹理");
-                RenderError::RenderFailed("没有遮罩纹理".to_string())
-            })?;
+        let has_video_texture = self.video_texture.is_some();
+        let has_mask_texture = self.mask_texture.is_some();
+        
+        if !has_video_texture {
+            error!("渲染失败：没有视频纹理");
+            return Err(RenderError::RenderFailed("没有视频纹理".to_string()));
+        }
+        if !has_mask_texture {
+            error!("渲染失败：没有遮罩纹理");
+            return Err(RenderError::RenderFailed("没有遮罩纹理".to_string()));
+        }
 
         // 更新统一缓冲区（旋转矩阵）
         debug!("更新旋转矩阵");
@@ -604,6 +607,8 @@ impl RenderEngine {
         // 创建或更新纹理绑定组
         if self.video_bind_group.is_none() {
             debug!("创建纹理绑定组");
+            let video_texture = self.video_texture.as_ref().unwrap();
+            let mask_texture = self.mask_texture.as_ref().unwrap();
             self.update_bind_group(video_texture, mask_texture);
         }
 
