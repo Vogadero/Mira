@@ -218,6 +218,25 @@ impl CameraManager {
                     let height = resolution.height_y;
                     let data = frame.buffer().to_vec();
                     
+                    // 验证数据大小
+                    let expected_size = (width * height * 3) as usize; // RGB8 格式
+                    if data.len() != expected_size {
+                        error!("摄像头帧数据大小不匹配: 实际 {} 字节, 期望 {} 字节 ({}x{}x3)", 
+                               data.len(), expected_size, width, height);
+                        
+                        // 如果数据不完整，尝试重试
+                        if attempt < self.max_retries {
+                            warn!("帧数据不完整，尝试重新捕获 ({}/{})", attempt + 1, self.max_retries + 1);
+                            std::thread::sleep(std::time::Duration::from_millis(100));
+                            continue;
+                        } else {
+                            return Err(CameraError::CaptureError(format!(
+                                "帧数据大小不匹配: 实际 {} 字节, 期望 {} 字节", 
+                                data.len(), expected_size
+                            )));
+                        }
+                    }
+                    
                     debug!("成功捕获帧: {}x{}, {} 字节", width, height, data.len());
                     
                     return Ok(Frame {

@@ -775,26 +775,57 @@ impl RenderEngine {
             PixelFormat::RGB8 => {
                 debug!("RGB8 -> RGBA8 转换，原始数据: {} 字节", frame.data.len());
                 
+                // 验证 RGB 数据大小
+                let expected_rgb_size = (frame.width * frame.height * 3) as usize;
+                if frame.data.len() != expected_rgb_size {
+                    error!("RGB 数据大小不匹配: 实际 {} 字节, 期望 {} 字节 ({}x{}x3)", 
+                           frame.data.len(), expected_rgb_size, frame.width, frame.height);
+                    return Err(RenderError::TextureUploadFailed);
+                }
+                
                 // 使用缓冲区池获取内存
                 let mut rgba_data = self.frame_buffer_pool.get_buffer();
                 rgba_data.clear();
-                rgba_data.reserve(frame.data.len() * 4 / 3);
+                
+                let expected_rgba_size = (frame.width * frame.height * 4) as usize;
+                rgba_data.reserve(expected_rgba_size);
                 
                 // RGB 转 RGBA，添加 alpha 通道
-                for chunk in frame.data.chunks(3) {
-                    if chunk.len() == 3 {
-                        rgba_data.extend_from_slice(chunk);
-                        rgba_data.push(255); // 完全不透明
-                    } else {
-                        warn!("RGB 数据块大小不正确: {} 字节", chunk.len());
-                    }
+                for chunk in frame.data.chunks_exact(3) {
+                    rgba_data.extend_from_slice(chunk);
+                    rgba_data.push(255); // 完全不透明
                 }
                 
-                debug!("转换完成，RGBA 数据: {} 字节", rgba_data.len());
+                // 处理剩余的不完整数据（如果有）
+                let remainder = frame.data.len() % 3;
+                if remainder > 0 {
+                    warn!("RGB 数据有 {} 字节剩余，数据可能不完整", remainder);
+                    // 不处理不完整的像素
+                }
+                
+                debug!("转换完成，RGBA 数据: {} 字节 (期望: {} 字节)", 
+                       rgba_data.len(), expected_rgba_size);
+                
+                // 最终验证
+                if rgba_data.len() != expected_rgba_size {
+                    error!("RGBA 转换后大小不匹配: 实际 {} 字节, 期望 {} 字节", 
+                           rgba_data.len(), expected_rgba_size);
+                    return Err(RenderError::TextureUploadFailed);
+                }
+                
                 Ok(rgba_data)
             }
             PixelFormat::RGBA8 => {
                 debug!("RGBA8 格式，直接使用，数据: {} 字节", frame.data.len());
+                
+                // 验证 RGBA 数据大小
+                let expected_rgba_size = (frame.width * frame.height * 4) as usize;
+                if frame.data.len() != expected_rgba_size {
+                    error!("RGBA 数据大小不匹配: 实际 {} 字节, 期望 {} 字节 ({}x{}x4)", 
+                           frame.data.len(), expected_rgba_size, frame.width, frame.height);
+                    return Err(RenderError::TextureUploadFailed);
+                }
+                
                 // 已经是 RGBA 格式，但仍使用缓冲区池来保持一致性
                 let mut rgba_data = self.frame_buffer_pool.get_buffer();
                 rgba_data.clear();
