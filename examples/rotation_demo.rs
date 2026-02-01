@@ -65,7 +65,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ..
             } => {
                 // 更新修饰键状态
-                modifiers_state = new_modifiers;
+                modifiers_state = new_modifiers.state();
             }
             Event::WindowEvent {
                 event: WindowEvent::CursorMoved { position, .. },
@@ -170,7 +170,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             }
-            Event::RedrawRequested(_) => {
+            Event::WindowEvent {
+                event: WindowEvent::RedrawRequested,
+                ..
+            } => {
                 // 这里将来会调用渲染引擎
                 // 目前只是一个占位符
             }

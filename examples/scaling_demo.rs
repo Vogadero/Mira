@@ -150,7 +150,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             }
-            Event::RedrawRequested(_) => {
+            Event::WindowEvent {
+                event: WindowEvent::RedrawRequested,
+                ..
+            } => {
                 // 这里将来会调用渲染引擎
                 // 目前只是一个占位符
             }
