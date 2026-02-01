@@ -6,8 +6,9 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-1.75+-orange.svg)](https://www.rust-lang.org)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey)](#系统要求)
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#构建状态)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](#系统要求)
+[![Build Status](https://github.com/Vogadero/Mira/workflows/Build%20and%20Release/badge.svg)](https://github.com/Vogadero/Mira/actions)
+[![Release](https://img.shields.io/github/v/release/Vogadero/Mira)](https://github.com/Vogadero/Mira/releases)
 
 [功能特性](#功能特性) • [快速开始](#快速开始) • [安装指南](#安装指南) • [使用说明](#使用说明) • [开发文档](#开发文档)
 
