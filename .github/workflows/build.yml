@@ -7,6 +7,7 @@ on:
       - 'v*'
   pull_request:
     branches: [ main, master ]
+  workflow_dispatch:  # 允许手动触发
 
 env:
   CARGO_TERM_COLOR: always
@@ -236,6 +237,8 @@ jobs:
     needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -258,6 +261,21 @@ jobs:
         name: mira-linux-x64
         path: ./artifacts
     
+    - name: Extract version from tag
+      id: get_version
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Version: $VERSION"
+    
+    - name: Generate checksums
+      run: |
+        cd artifacts
+        sha256sum mira-windows-x64.zip > checksums.txt
+        sha256sum mira-macos-x64.tar.gz >> checksums.txt
+        sha256sum mira-linux-x64.tar.gz >> checksums.txt
+        cat checksums.txt
+    
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
@@ -265,32 +283,73 @@ jobs:
           ./artifacts/mira-windows-x64.zip
           ./artifacts/mira-macos-x64.tar.gz
           ./artifacts/mira-linux-x64.tar.gz
+          ./artifacts/checksums.txt
         draft: false
         prerelease: false
         generate_release_notes: true
+        name: Mira v${{ steps.get_version.outputs.version }}
         body: |
-          ## Mira Desktop Camera v${{ github.ref_name }}
+          ## 🎥 Mira Desktop Camera v${{ steps.get_version.outputs.version }}
           
-          🎥 **桌面摄像精灵** - 现代化的桌面摄像头应用
+          **桌面摄像精灵** - 现代化的桌面摄像头应用
           
-          ### 功能特性
-          - 🎨 5种形状遮罩（圆形、椭圆、矩形、圆角矩形、心形）
-          - 🖱️ 灵活交互（拖拽、缩放、旋转）
-          - 🚀 高性能GPU渲染（30+ FPS）
-          - 💾 智能配置保存
-          - 🌍 跨平台支持
+          ### ✨ 功能特性
+          - 🎨 **5种形状遮罩**: 圆形、椭圆、矩形、圆角矩形、心形
+          - 🖱️ **灵活交互**: 拖拽移动、滚轮缩放、Ctrl+滚轮旋转
+          - 🚀 **高性能渲染**: GPU加速，稳定30+ FPS
+          - 💾 **智能配置**: 自动保存窗口状态和偏好设置
+          - 🌍 **跨平台支持**: Windows、macOS、Linux
+          - ⚡ **低资源占用**: CPU < 25%，内存 < 200MB
           
-          ### 下载说明
-          - **Windows**: 下载 `mira-windows-x64.zip`
-          - **macOS**: 下载 `mira-macos-x64.tar.gz`
-          - **Linux**: 下载 `mira-linux-x64.tar.gz`
+          ### 📦 下载说明
           
-          ### 使用方法
-          1. 解压下载的文件
-          2. 运行 `mira` 或 `mira.exe`
-          3. 授予摄像头权限
-          4. 开始使用！
+          | 平台 | 文件 | 说明 |
+          |------|------|------|
+          | 🪟 Windows | `mira-windows-x64.zip` | Windows 10/11 x64 |
+          | 🍎 macOS | `mira-macos-x64.tar.gz` | macOS 10.15+ x64/ARM64 |
+          | 🐧 Linux | `mira-linux-x64.tar.gz` | Ubuntu 20.04+ / Debian 11+ |
           
-          详细使用说明请参考 [README.md](https://github.com/Vogadero/Mira/blob/main/README.md)
+          ### 🚀 快速开始
+          
+          1. **下载**: 选择适合你系统的安装包
+          2. **解压**: 解压下载的文件到任意目录
+          3. **运行**: 
+             - Windows: 双击 `mira.exe`
+             - macOS/Linux: 在终端运行 `./mira`
+          4. **授权**: 首次运行时授予摄像头访问权限
+          5. **使用**: 开始享受桌面摄像精灵！
+          
+          ### 🎮 操作指南
+          
+          - **左键拖拽**: 移动窗口
+          - **鼠标滚轮**: 缩放窗口 (±10%)
+          - **Ctrl + 滚轮**: 旋转窗口 (±15°)
+          - **F1-F5**: 切换形状 (圆形/椭圆/矩形/圆角矩形/心形)
+          - **Tab**: 切换摄像头设备
+          - **空格**: 循环切换形状
+          - **R**: 重置窗口位置和旋转
+          
+          ### 🔒 安全验证
+          
+          下载后请验证文件完整性：
+          ```bash
+          sha256sum -c checksums.txt
+          ```
+          
+          ### 📚 文档
+          
+          - [完整文档](https://github.com/Vogadero/Mira/blob/main/README.md)
+          - [安装指南](https://github.com/Vogadero/Mira/blob/main/SETUP_GUIDE.md)
+          - [部署指南](https://github.com/Vogadero/Mira/blob/main/DEPLOYMENT_GUIDE.md)
+          
+          ### 🐛 问题反馈
+          
+          如遇到问题，请在 [Issues](https://github.com/Vogadero/Mira/issues) 中反馈。
+          
+          ---
+          
+          **构建信息**
+          - 构建时间: ${{ github.event.head_commit.timestamp }}
+          - 提交: ${{ github.sha }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
