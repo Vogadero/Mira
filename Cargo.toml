@@ -1,0 +1,124 @@
+[package]
+name = "mira"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "mira"
+path = "src/lib.rs"
+
+[[bin]]
+name = "mira"
+path = "src/main.rs"
+
+[[example]]
+name = "camera_demo"
+path = "examples/camera_demo.rs"
+
+[[example]]
+name = "error_handling_demo"
+path = "examples/error_handling_demo.rs"
+
+[[example]]
+name = "shape_demo"
+path = "examples/shape_demo.rs"
+
+[[example]]
+name = "window_demo"
+path = "examples/window_demo.rs"
+
+[[example]]
+name = "scaling_demo"
+path = "examples/scaling_demo.rs"
+
+[[example]]
+name = "drag_demo"
+path = "examples/drag_demo.rs"
+
+[[example]]
+name = "rotation_demo"
+path = "examples/rotation_demo.rs"
+
+[dependencies]
+# 摄像头捕获
+nokhwa = { version = "0.10", features = ["input-native"] }
+
+# 窗口管理
+winit = "0.29"
+
+# GPU 渲染
+wgpu = "0.20"
+bytemuck = { version = "1.14", features = ["derive"] }
+
+# 图像处理
+image = "0.24"
+
+# 配置持久化
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+
+# 日志系统
+log = "0.4"
+env_logger = "0.11"
+fern = "0.6"  # 更强大的日志配置
+chrono = { version = "0.4", features = ["serde"] }
+
+# 异步运行时
+tokio = { version = "1.0", features = ["rt", "rt-multi-thread"] }
+
+# 系统信息
+num_cpus = "1.0"
+
+[build-dependencies]
+vergen = { version = "8.0", features = ["build", "git", "gitcl"] }
+
+[dev-dependencies]
+# 基于属性的测试
+quickcheck = "1.0"
+quickcheck_macros = "1.0"
+
+# 模拟库
+mockall = "0.12"
+
+# 性能基准测试
+criterion = "0.5"
+
+# 临时文件用于测试
+tempfile = "3.0"
+
+[[bench]]
+name = "performance"
+harness = false
+
+# 发布优化配置
+[profile.release]
+# 启用最高级别的优化
+opt-level = 3
+# 启用链接时优化 (LTO) 以减小二进制文件大小
+lto = true
+# 减少代码生成单元数量以提高优化效果
+codegen-units = 1
+# 禁用调试信息以减小文件大小
+debug = false
+# 启用 panic = "abort" 以减小二进制文件大小
+panic = "abort"
+# 去除符号表以进一步减小文件大小
+strip = true
+
+# 开发配置优化
+[profile.dev]
+# 开发时使用较低的优化级别以加快编译速度
+opt-level = 0
+# 保留调试信息
+debug = true
+# 启用增量编译
+incremental = true
+
+# 依赖项优化配置
+[profile.dev.package."*"]
+# 对依赖项使用较高的优化级别以提高开发时性能
+opt-level = 2
+
+[profile.release.package."*"]
+# 发布时对所有依赖项使用最高优化级别
+opt-level = 3

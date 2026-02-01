@@ -1,0 +1,353 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+    
+    - name: Install dependencies
+      run: |
+        # 确保有必要的工具
+        rustc --version
+        cargo --version
+    
+    - name: Build release
+      run: |
+        cargo build --release --verbose
+    
+    - name: Run tests
+      run: cargo test --release --verbose
+    
+    - name: Create distribution package
+      run: |
+        # 创建分发目录
+        New-Item -ItemType Directory -Force -Path dist
+        
+        # 复制文件
+        Copy-Item target\release\mira.exe dist\
+        Copy-Item README.md dist\
+        Copy-Item LICENSE dist\
+        
+        # 创建版本文件
+        echo "Mira Desktop Camera v1.0.0" | Out-File -FilePath dist\VERSION.txt -Encoding UTF8
+        echo "Build Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" | Out-File -FilePath dist\VERSION.txt -Append -Encoding UTF8
+        echo "Platform: Windows x64" | Out-File -FilePath dist\VERSION.txt -Append -Encoding UTF8
+        
+        # 检查文件大小
+        $size = (Get-Item target\release\mira.exe).Length / 1MB
+        Write-Host "Binary size: $([math]::Round($size, 2)) MB"
+        
+        if ($size -gt 20) {
+          Write-Warning "Binary size exceeds 20MB target"
+        } else {
+          Write-Host "✓ Binary size within target (<20MB)"
+        }
+    
+    - name: Create ZIP archive
+      run: |
+        Compress-Archive -Path dist\* -DestinationPath mira-windows-x64.zip
+        
+        # 检查压缩包大小
+        $zipSize = (Get-Item mira-windows-x64.zip).Length / 1MB
+        Write-Host "ZIP size: $([math]::Round($zipSize, 2)) MB"
+    
+    - name: Upload Windows artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: mira-windows-x64
+        path: mira-windows-x64.zip
+        retention-days: 30
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+    
+    - name: Install dependencies
+      run: |
+        # 安装必要工具
+        brew install bc
+        rustc --version
+        cargo --version
+    
+    - name: Build release
+      run: |
+        cargo build --release --verbose
+    
+    - name: Run tests
+      run: cargo test --release --verbose
+    
+    - name: Create distribution package
+      run: |
+        # 创建分发目录
+        mkdir -p dist
+        
+        # 复制文件
+        cp target/release/mira dist/
+        cp README.md dist/
+        cp LICENSE dist/
+        
+        # 创建版本文件
+        cat > dist/VERSION.txt << EOF
+        Mira Desktop Camera v1.0.0
+        Build Date: $(date '+%Y-%m-%d %H:%M:%S')
+        Platform: macOS x64
+        EOF
+        
+        # 检查文件大小
+        size=$(du -m target/release/mira | cut -f1)
+        echo "Binary size: ${size} MB"
+        
+        if [ $size -gt 25 ]; then
+          echo "⚠️  Binary size exceeds 25MB target"
+        else
+          echo "✓ Binary size within target (<25MB)"
+        fi
+    
+    - name: Create TAR archive
+      run: |
+        tar -czf mira-macos-x64.tar.gz -C dist .
+        
+        # 检查压缩包大小
+        tarSize=$(du -m mira-macos-x64.tar.gz | cut -f1)
+        echo "TAR size: ${tarSize} MB"
+    
+    - name: Upload macOS artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: mira-macos-x64
+        path: mira-macos-x64.tar.gz
+        retention-days: 30
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          pkg-config \
+          libssl-dev \
+          libudev-dev \
+          libv4l-dev \
+          bc
+    
+    - name: Build release
+      run: |
+        cargo build --release --verbose
+    
+    - name: Run tests
+      run: cargo test --release --verbose
+    
+    - name: Create distribution package
+      run: |
+        # 创建分发目录
+        mkdir -p dist
+        
+        # 复制文件
+        cp target/release/mira dist/
+        cp README.md dist/
+        cp LICENSE dist/
+        
+        # 创建版本文件
+        cat > dist/VERSION.txt << EOF
+        Mira Desktop Camera v1.0.0
+        Build Date: $(date '+%Y-%m-%d %H:%M:%S')
+        Platform: Linux x64
+        EOF
+        
+        # 检查文件大小
+        size=$(du -m target/release/mira | cut -f1)
+        echo "Binary size: ${size} MB"
+        
+        if [ $size -gt 30 ]; then
+          echo "⚠️  Binary size exceeds 30MB target"
+        else
+          echo "✓ Binary size within target (<30MB)"
+        fi
+    
+    - name: Create TAR archive
+      run: |
+        tar -czf mira-linux-x64.tar.gz -C dist .
+        
+        # 检查压缩包大小
+        tarSize=$(du -m mira-linux-x64.tar.gz | cut -f1)
+        echo "TAR size: ${tarSize} MB"
+    
+    - name: Upload Linux artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: mira-linux-x64
+        path: mira-linux-x64.tar.gz
+        retention-days: 30
+
+  release:
+    needs: [build-windows, build-macos, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Download Windows artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: mira-windows-x64
+        path: ./artifacts
+    
+    - name: Download macOS artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: mira-macos-x64
+        path: ./artifacts
+    
+    - name: Download Linux artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: mira-linux-x64
+        path: ./artifacts
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          ./artifacts/mira-windows-x64.zip
+          ./artifacts/mira-macos-x64.tar.gz
+          ./artifacts/mira-linux-x64.tar.gz
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+        body: |
+          ## Mira Desktop Camera v${{ github.ref_name }}
+          
+          🎥 **桌面摄像精灵** - 现代化的桌面摄像头应用
+          
+          ### 功能特性
+          - 🎨 5种形状遮罩（圆形、椭圆、矩形、圆角矩形、心形）
+          - 🖱️ 灵活交互（拖拽、缩放、旋转）
+          - 🚀 高性能GPU渲染（30+ FPS）
+          - 💾 智能配置保存
+          - 🌍 跨平台支持
+          
+          ### 下载说明
+          - **Windows**: 下载 `mira-windows-x64.zip`
+          - **macOS**: 下载 `mira-macos-x64.tar.gz`
+          - **Linux**: 下载 `mira-linux-x64.tar.gz`
+          
+          ### 使用方法
+          1. 解压下载的文件
+          2. 运行 `mira` 或 `mira.exe`
+          3. 授予摄像头权限
+          4. 开始使用！
+          
+          详细使用说明请参考 [README.md](https://github.com/Vogadero/Mira/blob/main/README.md)
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  benchmark:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          pkg-config \
+          libssl-dev \
+          libudev-dev \
+          libv4l-dev
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: benchmark-${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Run benchmarks
+      run: |
+        cargo bench --verbose
+    
+    - name: Upload benchmark results
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmark-results
+        path: target/criterion/
+        retention-days: 7

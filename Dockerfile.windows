@@ -1,0 +1,43 @@
+# Windows Docker 构建环境
+# 注意：此 Dockerfile 用于构建，不适合运行 GUI 应用
+
+# 使用 Windows Server Core 作为基础镜像
+FROM mcr.microsoft.com/windows/servercore:ltsc2022
+
+# 设置工作目录
+WORKDIR C:\build
+
+# 安装 PowerShell Core
+RUN powershell -Command \
+    Invoke-WebRequest -Uri https://github.com/PowerShell/PowerShell/releases/download/v7.3.0/PowerShell-7.3.0-win-x64.msi -OutFile PowerShell.msi; \
+    Start-Process msiexec.exe -Wait -ArgumentList '/I PowerShell.msi /quiet'; \
+    Remove-Item PowerShell.msi
+
+# 安装 Rust
+RUN powershell -Command \
+    Invoke-WebRequest -Uri https://win.rustup.rs/x86_64 -OutFile rustup-init.exe; \
+    .\rustup-init.exe -y --default-toolchain stable; \
+    Remove-Item rustup-init.exe
+
+# 设置环境变量
+ENV PATH="C:\Users\ContainerUser\.cargo\bin:${PATH}"
+
+# 安装 Visual Studio Build Tools
+RUN powershell -Command \
+    Invoke-WebRequest -Uri https://aka.ms/vs/17/release/vs_buildtools.exe -OutFile vs_buildtools.exe; \
+    Start-Process -FilePath .\vs_buildtools.exe -ArgumentList '--quiet', '--wait', '--add', 'Microsoft.VisualStudio.Workload.VCTools', '--add', 'Microsoft.VisualStudio.Component.Windows10SDK.19041' -NoNewWindow -Wait; \
+    Remove-Item vs_buildtools.exe
+
+# 复制项目文件
+COPY . .
+
+# 构建项目
+RUN cargo build --release
+
+# 运行构建脚本
+RUN powershell -ExecutionPolicy Bypass -File .\scripts\build_release.ps1
+
+# 设置输出目录
+VOLUME ["C:\build\dist"]
+
+CMD ["powershell"]

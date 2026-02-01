@@ -1,0 +1,55 @@
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Build artifacts
+/dist/
+*.zip
+*.tar.gz
+*.dmg
+*.msi
+*.exe.config
+
+# Logs
+*.log
+logs/
+
+# Certificates (for development)
+certificates/
+*.pfx
+*.p12
+*.pem
+*.key
+*.crt
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# Configuration (keep templates)
+config.toml
+settings.toml
+
+# Performance data
+/target/criterion/
+
+# Cache
+.cache/

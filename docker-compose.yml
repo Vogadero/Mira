@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # Windows 构建服务
+  mira-windows:
+    build:
+      context: .
+      dockerfile: Dockerfile.windows
+    platform: windows/amd64
+    volumes:
+      - ./dist-windows:/build/dist
+    environment:
+      - RUST_LOG=info
+    profiles:
+      - windows
+
+  # Unix (Linux/macOS) 构建服务  
+  mira-unix:
+    build:
+      context: .
+      dockerfile: Dockerfile.unix
+    platform: linux/amd64
+    volumes:
+      - ./dist-unix:/app/dist
+    environment:
+      - RUST_LOG=info
+    profiles:
+      - unix
+
+  # 开发环境服务
+  mira-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.unix
+    platform: linux/amd64
+    volumes:
+      - .:/app
+      - cargo-cache:/usr/local/cargo/registry
+    working_dir: /app
+    command: cargo run
+    environment:
+      - RUST_LOG=debug
+    profiles:
+      - dev
+
+volumes:
+  cargo-cache:
