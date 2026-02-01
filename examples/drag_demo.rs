@@ -5,7 +5,7 @@ use mira::window::WindowManager;
 use winit::{
     dpi::PhysicalPosition,
     event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
 };
 use log::{info, error, warn};
 use std::time::Instant;
@@ -44,9 +44,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut total_drag_time = std::time::Duration::new(0, 0);
     
     // 运行事件循环
-    event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
-        
+    event_loop.run(move |event, event_loop| {
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
@@ -68,7 +66,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 
-                *control_flow = ControlFlow::Exit;
+                event_loop.exit();
             }
             Event::WindowEvent {
                 event: WindowEvent::CursorMoved { position, .. },
@@ -157,7 +155,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                             VirtualKeyCode::Escape => {
                                 info!("用户按下 ESC 键，退出程序");
-                                *control_flow = ControlFlow::Exit;
+                                event_loop.exit();
                             }
                             _ => {}
                         }

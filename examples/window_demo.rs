@@ -4,7 +4,7 @@ use mira::window::WindowManager;
 use winit::{
     dpi::PhysicalPosition,
     event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
 };
 use log::{info, error};
 
@@ -38,16 +38,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut current_cursor_pos = PhysicalPosition::new(0.0, 0.0);
     
     // 运行事件循环
-    event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
-        
+    event_loop.run(move |event, event_loop| {
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
             } => {
                 info!("收到窗口关闭请求");
-                *control_flow = ControlFlow::Exit;
+                event_loop.exit();
             }
             Event::WindowEvent {
                 event: WindowEvent::CursorMoved { position, .. },
@@ -101,7 +99,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     _ => {}
                 }
             }
-            Event::RedrawRequested(_) => {
+            Event::WindowEvent {
+                event: WindowEvent::RedrawRequested,
+                ..
+            } => {
                 // 这里将来会调用渲染引擎
                 // 目前只是一个占位符
             }

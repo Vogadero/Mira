@@ -5,7 +5,7 @@ use winit::{
     dpi::PhysicalPosition,
     event::{Event, WindowEvent, ElementState, MouseButton},
     keyboard::ModifiersState,
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
 };
 use mira::window::WindowManager;
 
@@ -51,16 +51,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("  - 关闭窗口: 退出程序");
     
     // 运行事件循环
-    event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
-        
+    event_loop.run(move |event, event_loop| {
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
             } => {
                 info!("收到窗口关闭请求");
-                *control_flow = ControlFlow::Exit;
+                event_loop.exit();
             }
             Event::WindowEvent {
                 event: WindowEvent::ModifiersChanged(new_modifiers),
