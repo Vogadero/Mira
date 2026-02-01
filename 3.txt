@@ -1,0 +1,32 @@
+Running `C:\Users\runneradmin\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustc.exe --crate-name mira --edition=2021 src\lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C opt-level=3 -C panic=abort -C linker-plugin-lto -C codegen-units=1 --check-cfg cfg(docsrs,test) --check-cfg "cfg(feature, values())" -C metadata=a8478408631e9f3c -C extra-filename=-fbe268c461a2c191 --out-dir D:\a\Mira\Mira\target\release\deps -C strip=symbols -L dependency=D:\a\Mira\Mira\target\release\deps --extern bytemuck=D:\a\Mira\Mira\target\release\deps\libbytemuck-3c17be278239dcd5.rmeta --extern chrono=D:\a\Mira\Mira\target\release\deps\libchrono-817f702b20c3ce4a.rmeta --extern env_logger=D:\a\Mira\Mira\target\release\deps\libenv_logger-51f3b7c7197422a9.rmeta --extern fern=D:\a\Mira\Mira\target\release\deps\libfern-04d87ae60cace81e.rmeta --extern image=D:\a\Mira\Mira\target\release\deps\libimage-a3f27827f65c8cdc.rmeta --exte
+error[E0308]: mismatched types
+  --> src\event.rs:76:47
+   |
+76 |                 self.handle_modifiers_changed(*modifiers);
+   |                      ------------------------ ^^^^^^^^^^ expected `ModifiersState`, found `Modifiers`
+   |                      |
+   |                      arguments to this method are incorrect
+   |
+note: method defined here
+  --> src\event.rs:96:8
+   |
+96 |     fn handle_modifiers_changed(&mut self, modifiers: ModifiersState) {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^            -------------------------
+error[E0499]: cannot borrow `*self` as mutable more than once at a time
+   --> src\camera\manager.rs:236:51
+    |
+200 |         let camera = self.camera.as_mut().unwrap(); // 已在上层检查过
+    |                      ----------- first mutable borrow occurs here
+...
+203 |             match camera.frame() {
+    |                   ------ first borrow later used here
+...
+236 |                         if let Err(restart_err) = self.restart_video_stream() {
+    |                                                   ^^^^ second mutable borrow occurs here
+Some errors have detailed explanations: E0308, E0499.
+For more information about an error, try `rustc --explain E0308`.
+error: could not compile `mira` (lib) due to 2 previous errors
+Caused by:
+  process didn't exit successfully: `C:\Users\runneradmin\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustc.exe --crate-name mira --edition=2021 src\lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C opt-level=3 -C panic=abort -C linker-plugin-lto -C codegen-units=1 --check-cfg cfg(docsrs,test) --check-cfg "cfg(feature, values())" -C metadata=a8478408631e9f3c -C extra-filename=-fbe268c461a2c191 --out-dir D:\a\Mira\Mira\target\release\deps -C strip=symbols -L dependency=D:\a\Mira\Mira\target\release\deps --extern bytemuck=D:\a\Mira\Mira\target\release\deps\libbytemuck-3c17be278239dcd5.rmeta --extern chrono=D:\a\Mira\Mira\target\release\deps\libchrono-817f702b20c3ce4a.rmeta --extern env_logger=D:\a\Mira\Mira\target\release\deps\libenv_logger-51f3b7c7197422a9.rmeta --extern fern=D:\a\Mira\Mira\target\release\deps\libfern-04d87ae60cace81e.rmeta --extern image=D:\a\Mira\Mira\target\release\deps\libimage-a3f27827f65c8cdc.rm
+warning: build failed, waiting for other jobs to finish...
+Error: Process completed with exit code 1.
