@@ -131,10 +131,17 @@ impl CameraManager {
         // 创建摄像头索引
         let camera_index = CameraIndex::Index(index as u32);
         
-        // 设置请求的格式 - 优先使用 640x480 @ 30 FPS
+        // 设置请求的格式 - 使用 640x480 @ 30 FPS，避免 MJPEG 压缩
+        // 使用 Closest 而不是 AbsoluteHighestFrameRate 来避免高分辨率的 MJPEG
         let requested_format = RequestedFormat::new::<RgbFormat>(
-            RequestedFormatType::AbsoluteHighestFrameRate
+            RequestedFormatType::Closest(nokhwa::utils::CameraFormat::new(
+                nokhwa::utils::Resolution::new(640, 480),
+                nokhwa::utils::FrameFormat::RAWRGB,
+                30,
+            ))
         );
+        
+        info!("请求摄像头格式: 640x480 @ 30 FPS, RAWRGB");
         
         // 尝试打开摄像头
         let camera = Camera::new(camera_index, requested_format)
@@ -400,7 +407,11 @@ impl CameraManager {
         // 尝试创建一个临时摄像头实例来检测占用状态
         let camera_index = CameraIndex::Index(index as u32);
         let requested_format = RequestedFormat::new::<RgbFormat>(
-            RequestedFormatType::AbsoluteHighestFrameRate
+            RequestedFormatType::Closest(nokhwa::utils::CameraFormat::new(
+                nokhwa::utils::Resolution::new(640, 480),
+                nokhwa::utils::FrameFormat::RAWRGB,
+                30,
+            ))
         );
         
         match Camera::new(camera_index, requested_format) {
