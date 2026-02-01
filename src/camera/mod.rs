@@ -5,4 +5,4 @@ pub mod manager;
 #[cfg(test)]
 mod tests;
 
-pub use manager::{CameraInfo, CameraManager, Frame, PixelFormat};
+pub use manager::CameraManager;

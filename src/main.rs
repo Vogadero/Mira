@@ -398,7 +398,7 @@ impl MiraApp {
     }
 
     /// 获取窗口引用
-    fn window(&self) -> &winit::window::Window {
+    fn window(&self) -> Arc<winit::window::Window> {
         self.event_handler.window_manager().window()
     }
 }
@@ -610,9 +610,7 @@ async fn run_application() -> Result<(), Box<dyn std::error::Error>> {
     info!("启动主事件循环...");
     
     // 运行事件循环
-    let result = event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
-        
+    let result = event_loop.run(move |event, event_loop| {
         match event {
             Event::WindowEvent { event, window_id } => {
                 // 确保事件来自我们的窗口
@@ -621,27 +619,23 @@ async fn run_application() -> Result<(), Box<dyn std::error::Error>> {
                     let should_exit = app.handle_event(&event);
                     if should_exit {
                         info!("收到退出请求，正在关闭应用程序");
-                        *control_flow = ControlFlow::Exit;
+                        event_loop.exit();
+                    }
+                    
+                    // 处理重绘请求
+                    if matches!(event, WindowEvent::RedrawRequested) {
+                        // 渲染一帧
+                        if let Err(e) = app.render_frame() {
+                            error!("渲染帧失败: {}", e);
+                            // 记录错误但不退出应用，尝试恢复
+                            warn!("尝试继续运行，可能会影响性能");
+                        }
                     }
                 }
             }
-            Event::RedrawRequested(window_id) => {
-                // 确保重绘请求来自我们的窗口
-                if window_id == app.window().id() {
-                    // 渲染一帧
-                    if let Err(e) = app.render_frame() {
-                        error!("渲染帧失败: {}", e);
-                        // 记录错误但不退出应用，尝试恢复
-                        warn!("尝试继续运行，可能会影响性能");
-                    }
-                }
-            }
-            Event::MainEventsCleared => {
+            Event::AboutToWait => {
                 // 请求重绘以维持目标帧率
                 app.window().request_redraw();
-            }
-            Event::LoopDestroyed => {
-                info!("事件循环已销毁，应用程序即将退出");
             }
             _ => {}
         }
