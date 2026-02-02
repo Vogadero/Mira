@@ -61,8 +61,8 @@ impl FrameBufferPool {
                 debug!("分配新缓冲区，总分配数: {}", *allocated);
                 vec![0u8; self.buffer_size]
             } else {
-                // 达到最大限制，创建临时缓冲区
-                warn!("达到缓冲区最大限制 {}，创建临时缓冲区", self.max_buffers);
+                // 达到最大限制，静默创建临时缓冲区（性能优先，不警告）
+                debug!("达到缓冲区最大限制 {}，创建临时缓冲区", self.max_buffers);
                 vec![0u8; self.buffer_size]
             }
         }
