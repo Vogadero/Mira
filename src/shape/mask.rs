@@ -190,7 +190,8 @@ impl ShapeMask {
     fn generate_heart(&mut self) {
         let center_x = self.width as f32 / 2.0;
         let center_y = self.height as f32 / 2.0;
-        let scale = (self.width.min(self.height) as f32) / 40.0;
+        // 增加心形大小，从 /40.0 改为 /20.0
+        let scale = (self.width.min(self.height) as f32) / 20.0;
         
         self.mask_data = vec![0u8; (self.width * self.height) as usize];
         

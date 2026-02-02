@@ -8,6 +8,13 @@ use std::sync::Arc;
 use std::time::Duration;
 use wgpu::util::DeviceExt;
 use winit::window::Window;
+use winit::dpi::PhysicalSize;
+
+/// UI渲染信息
+pub struct UIRenderInfo {
+    pub show_controls: bool,
+    pub window_size: PhysicalSize<u32>,
+}
 
 /// 渲染引擎内存统计信息
 #[derive(Debug, Clone)]
@@ -609,6 +616,15 @@ impl RenderEngine {
 
     /// 渲染一帧
     pub fn render(&mut self, rotation: f32) -> Result<(), RenderError> {
+        let ui_info = UIRenderInfo {
+            show_controls: false,
+            window_size: PhysicalSize::new(self.surface_config.width, self.surface_config.height),
+        };
+        self.render_with_ui(rotation, &ui_info)
+    }
+    
+    /// 渲染一帧（带UI）
+    pub fn render_with_ui(&mut self, rotation: f32, ui_info: &UIRenderInfo) -> Result<(), RenderError> {
         debug!("开始渲染帧，旋转角度: {:.1}°", rotation.to_degrees());
         
         // 检查是否有视频纹理和遮罩纹理
@@ -722,9 +738,14 @@ impl RenderEngine {
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             debug!("顶点和索引缓冲区已设置");
             
-            // 绘制
+            // 绘制主视频内容
             render_pass.draw_indexed(0..INDICES.len() as u32, 0, 0..1);
             debug!("绘制命令已提交，索引数量: {}", INDICES.len());
+        }
+
+        // 渲染UI控件（如果需要显示）
+        if ui_info.show_controls {
+            self.render_ui_controls(&mut encoder, &view, ui_info)?;
         }
 
         // 提交命令
@@ -736,6 +757,87 @@ impl RenderEngine {
         debug!("帧渲染完成");
 
         Ok(())
+    }
+
+    /// 渲染UI控件（关闭和最小化按钮）
+    fn render_ui_controls(
+        &mut self,
+        encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+        ui_info: &UIRenderInfo,
+    ) -> Result<(), RenderError> {
+        debug!("渲染UI控件");
+        
+        // 创建UI渲染通道
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("UI Render Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load, // 保留之前的内容
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            occlusion_query_set: None,
+            timestamp_writes: None,
+        });
+
+        // 计算按钮位置和尺寸
+        let button_size = 20.0;
+        let margin = 5.0;
+        let window_width = ui_info.window_size.width as f32;
+        let window_height = ui_info.window_size.height as f32;
+        
+        // 关闭按钮位置（右上角）
+        let close_x = window_width - button_size - margin;
+        let close_y = margin;
+        
+        // 最小化按钮位置（关闭按钮左边）
+        let minimize_x = close_x - button_size - margin;
+        let minimize_y = margin;
+        
+        // 渲染关闭按钮（红色圆形，带白色X）
+        self.render_button(
+            &mut render_pass,
+            close_x, close_y, button_size,
+            [0.8, 0.2, 0.2, 0.8], // 半透明红色
+            "×", // 关闭符号
+        );
+        
+        // 渲染最小化按钮（灰色圆形，带白色减号）
+        self.render_button(
+            &mut render_pass,
+            minimize_x, minimize_y, button_size,
+            [0.4, 0.4, 0.4, 0.8], // 半透明灰色
+            "−", // 最小化符号
+        );
+        
+        debug!("UI控件渲染完成");
+        Ok(())
+    }
+
+    /// 渲染单个按钮（简化实现，使用基本几何图形）
+    fn render_button(
+        &self,
+        render_pass: &mut wgpu::RenderPass,
+        x: f32, y: f32, size: f32,
+        color: [f32; 4],
+        _symbol: &str, // 暂时不实现文字渲染，只渲染背景
+    ) {
+        // 注意：这是一个简化的实现
+        // 在实际应用中，需要创建专门的UI渲染管线和着色器
+        // 这里我们只是记录按钮应该被渲染的位置
+        debug!("渲染按钮: 位置({:.1}, {:.1}), 尺寸{:.1}, 颜色{:?}", x, y, size, color);
+        
+        // TODO: 实现真正的按钮渲染
+        // 1. 创建圆形几何体
+        // 2. 应用颜色和透明度
+        // 3. 渲染符号（需要字体渲染系统）
+        
+        // 暂时只记录日志，实际的视觉渲染需要更复杂的实现
+        // 包括创建专门的UI顶点缓冲区、UI着色器等
     }
 
     /// 更新纹理绑定组

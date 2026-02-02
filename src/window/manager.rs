@@ -183,11 +183,11 @@ impl WindowManager {
             
             let new_pos = PhysicalPosition::new(new_x, new_y);
             
-            // 只有位置真正改变时才更新（避免重复调用）
-            if (new_pos.x - self.position.x).abs() > 0.5 || (new_pos.y - self.position.y).abs() > 0.5 {
+            // 进一步降低阈值，只有位置真正改变时才更新（避免重复调用）
+            if (new_pos.x - self.position.x).abs() > 0.1 || (new_pos.y - self.position.y).abs() > 0.1 {
                 self.position = new_pos;
                 
-                // 使用 set_outer_position 的同时，尝试减少调用频率
+                // 直接设置位置，不进行边界检查（在拖拽结束时统一处理）
                 self.window.set_outer_position(new_pos);
             }
         }

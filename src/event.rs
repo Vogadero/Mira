@@ -159,6 +159,45 @@ impl EventHandler {
         &mut self.config_manager
     }
     
+    /// 显示右键上下文菜单
+    fn show_context_menu(&mut self, position: PhysicalPosition<f64>) {
+        // 显示详细的右键菜单信息
+        info!("=== 右键上下文菜单 ===");
+        info!("鼠标位置: ({:.1}, {:.1})", position.x, position.y);
+        info!("");
+        info!("🎭 形状切换:");
+        info!("   F1 - 圆形 ⭕");
+        info!("   F2 - 椭圆形 ⭕");
+        info!("   F3 - 矩形 ⬜");
+        info!("   F4 - 圆角矩形 ▢");
+        info!("   F5 - 心形 ❤️");
+        info!("   空格 - 循环切换");
+        info!("");
+        info!("🎮 窗口控制:");
+        info!("   鼠标滚轮 - 缩放 (±10%)");
+        info!("   Ctrl+滚轮 - 旋转 (±15°)");
+        info!("   拖拽 - 移动窗口");
+        info!("   R - 重置位置和旋转");
+        info!("");
+        info!("📹 摄像头:");
+        info!("   Tab - 切换设备");
+        info!("   当前设备: {}", 
+              self.camera_manager.current_device()
+                  .map(|d| d.name.as_str())
+                  .unwrap_or("未知"));
+        info!("");
+        info!("ℹ️  当前状态:");
+        info!("   形状: {:?}", self.shape_mask.shape_type());
+        info!("   尺寸: {}x{}", self.window_manager.size().width, self.window_manager.size().height);
+        info!("   位置: ({:.0}, {:.0})", self.window_manager.position().x, self.window_manager.position().y);
+        info!("   旋转: {:.1}°", self.window_manager.rotation());
+        info!("========================");
+        
+        // TODO: 实现真正的可视化右键菜单
+        // 这需要创建一个浮动菜单窗口或使用GUI库
+        // 当前版本通过控制台日志提供功能说明
+    }
+    
     /// 获取当前鼠标位置
     pub fn last_cursor_pos(&self) -> PhysicalPosition<f64> {
         self.last_cursor_pos
@@ -169,7 +208,7 @@ impl EventHandler {
         self.is_ctrl_pressed
     }
     
-    /// 处理鼠标按下事件（开始拖拽或点击控制按钮）
+    /// 处理鼠标按下事件（开始拖拽、点击控制按钮或显示右键菜单）
     fn handle_mouse_press(&mut self, button: MouseButton, position: PhysicalPosition<f64>) {
         match button {
             MouseButton::Left => {
@@ -190,9 +229,12 @@ impl EventHandler {
                     // 检查点击位置
                     if position.x >= close_x && position.x <= close_x + button_size
                     && position.y >= close_y && position.y <= close_y + button_size {
-                        // 点击关闭按钮
-                        info!("用户点击关闭按钮");
-                        // 这里需要发送关闭事件，暂时先记录
+                        // 点击关闭按钮 - 触发窗口关闭事件
+                        info!("用户点击关闭按钮，准备退出应用");
+                        // 保存配置并清理资源
+                        self.handle_close_requested();
+                        // 注意：这里需要通知主循环退出，但我们无法直接做到
+                        // 在实际应用中，需要通过事件系统或状态管理来处理
                         return;
                     }
                     
@@ -209,8 +251,13 @@ impl EventHandler {
                 self.window_manager.start_drag(position);
                 info!("开始拖拽窗口，鼠标位置: ({:.1}, {:.1})", position.x, position.y);
             }
+            MouseButton::Right => {
+                // 右键显示上下文菜单
+                info!("显示右键菜单");
+                self.show_context_menu(position);
+            }
             _ => {
-                debug!("忽略非左键鼠标按下事件: {:?}", button);
+                debug!("忽略其他鼠标按下事件: {:?}", button);
             }
         }
     }
@@ -535,9 +582,15 @@ impl EventHandler {
             return Err(format!("GPU 上传失败: {}", e));
         }
         
+        // 准备UI渲染信息
+        let ui_info = crate::render::engine::UIRenderInfo {
+            show_controls: self.show_controls,
+            window_size: self.window_manager.size(),
+        };
+        
         // 调用渲染引擎渲染当前帧
         let rotation_radians = self.window_manager.rotation().to_radians();
-        if let Err(e) = self.render_engine.render(rotation_radians) {
+        if let Err(e) = self.render_engine.render_with_ui(rotation_radians, &ui_info) {
             error!("渲染帧失败: {}", e);
             
             // 尝试恢复渲染引擎
@@ -551,7 +604,7 @@ impl EventHandler {
             }
             
             // 再次尝试渲染
-            if let Err(retry_err) = self.render_engine.render(rotation_radians) {
+            if let Err(retry_err) = self.render_engine.render_with_ui(rotation_radians, &ui_info) {
                 error!("渲染恢复失败: {}", retry_err);
                 return Err(format!("渲染失败且无法恢复: {}", e));
             }
