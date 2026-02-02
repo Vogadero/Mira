@@ -58,7 +58,7 @@ serde = { version = "1.0", features = ["derive"] }
 toml = "0.8"
 
 # 日志系统
-log = "0.4"
+log = { version = "0.4", features = ["max_level_info", "release_max_level_warn"] }
 env_logger = "0.11"
 fern = "0.6"  # 更强大的日志配置
 chrono = { version = "0.4", features = ["serde"] }
@@ -94,16 +94,19 @@ harness = false
 [profile.release]
 # 启用最高级别的优化
 opt-level = 3
-# 启用链接时优化 (LTO) 以减小二进制文件大小
-lto = true
+# 启用链接时优化 (LTO) - 使用 "fat" 以获得最佳性能
+lto = "fat"
 # 减少代码生成单元数量以提高优化效果
 codegen-units = 1
 # 禁用调试信息以减小文件大小
 debug = false
-# 启用 panic = "abort" 以减小二进制文件大小
+# 启用 panic = "abort" 以减小二进制文件大小和提高性能
 panic = "abort"
 # 去除符号表以进一步减小文件大小
 strip = true
+# 启用所有目标 CPU 特性以获得最佳性能
+[profile.release.build-override]
+opt-level = 3
 
 # 开发配置优化
 [profile.dev]

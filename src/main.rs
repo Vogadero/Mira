@@ -290,59 +290,57 @@ impl MiraApp {
         
         self.last_frame_time = now;
         
-        // 定期清理资源
+        // 定期清理资源（降低频率）
         if now.duration_since(self.last_cleanup) >= self.cleanup_interval {
             self.cleanup_resources();
             self.last_cleanup = now;
         }
         
-        // 记录渲染开始时间
-        let render_start = Instant::now();
-        
         // 调用事件处理器的渲染方法
         let render_result = self.event_handler.render_frame();
         
-        // 计算渲染时间
-        let render_time = render_start.elapsed();
-        let total_frame_time = frame_start.elapsed();
-        
-        // 更新性能监控
-        if let Some(alert) = self.performance_monitor.record_frame(total_frame_time, render_time) {
-            match alert.severity() {
-                AlertSeverity::Warning => {
-                    warn!("性能警告: {}", alert.message());
-                }
-                AlertSeverity::Critical => {
-                    error!("性能严重警告: {}", alert.message());
-                    
-                    // 对于严重的性能问题，尝试优化措施
-                    match alert {
-                        performance::PerformanceAlert::LowFps { .. } => {
-                            warn!("FPS 过低，尝试清理资源");
-                            self.cleanup_resources();
+        // 简化性能监控（仅在 debug 模式下）
+        #[cfg(debug_assertions)]
+        {
+            let render_time = frame_start.elapsed();
+            let total_frame_time = frame_start.elapsed();
+            
+            // 更新性能监控
+            if let Some(alert) = self.performance_monitor.record_frame(total_frame_time, render_time) {
+                match alert.severity() {
+                    AlertSeverity::Critical => {
+                        error!("性能严重警告: {}", alert.message());
+                        
+                        // 对于严重的性能问题，尝试优化措施
+                        match alert {
+                            performance::PerformanceAlert::LowFps { .. } => {
+                                warn!("FPS 过低，尝试清理资源");
+                                self.cleanup_resources();
+                            }
+                            performance::PerformanceAlert::HighMemory { .. } => {
+                                warn!("内存使用过高，强制清理");
+                                self.force_cleanup_resources();
+                            }
+                            _ => {}
                         }
-                        performance::PerformanceAlert::HighMemory { .. } => {
-                            warn!("内存使用过高，强制清理");
-                            self.force_cleanup_resources();
-                        }
-                        _ => {}
                     }
+                    _ => {}
                 }
             }
-        }
-        
-        // 更新内存监控
-        let current_memory = get_memory_usage_mb();
-        let render_stats = self.event_handler.render_engine().get_memory_stats();
-        if let Some(memory_alert) = self.memory_monitor.update(current_memory, render_stats.frame_buffer_pool.allocated_count) {
-            match memory_alert {
-                memory::MemoryAlert::PossibleLeak { increase_mb, current_mb } => {
-                    error!("检测到可能的内存泄漏: 增长 {:.1}MB, 当前 {:.1}MB", increase_mb, current_mb);
-                    self.force_cleanup_resources();
-                }
-                memory::MemoryAlert::HighUsage { current_mb, threshold_mb } => {
-                    warn!("内存使用过高: {:.1}MB > {:.1}MB", current_mb, threshold_mb);
-                    self.cleanup_resources();
+            
+            // 更新内存监控
+            let current_memory = get_memory_usage_mb();
+            let render_stats = self.event_handler.render_engine().get_memory_stats();
+            if let Some(memory_alert) = self.memory_monitor.update(current_memory, render_stats.frame_buffer_pool.allocated_count) {
+                match memory_alert {
+                    memory::MemoryAlert::PossibleLeak { increase_mb, current_mb } => {
+                        error!("检测到可能的内存泄漏: 增长 {:.1}MB, 当前 {:.1}MB", increase_mb, current_mb);
+                        self.force_cleanup_resources();
+                    }
+                    memory::MemoryAlert::HighUsage { current_mb, threshold_mb } => {
+                        warn!("内存使用过高: {:.1}MB > {:.1}MB", current_mb, threshold_mb);
+                        self.cleanup_resources();
+                    }
                 }
             }
         }
@@ -351,23 +349,20 @@ impl MiraApp {
             Ok(()) => Ok(()),
             Err(e) => {
                 self.render_errors += 1;
-                error!("渲染帧失败 (错误计数: {}): {}", self.render_errors, e);
+                
+                // 简化错误日志（仅在 debug 模式或错误较多时）
+                #[cfg(debug_assertions)]
+                {
+                    error!("渲染帧失败 (错误计数: {}): {}", self.render_errors, e);
+                }
                 
                 // 记录详细的错误信息
                 if e.contains("摄像头") {
                     self.camera_errors += 1;
-                    warn!("摄像头相关错误增加，总计: {}", self.camera_errors);
                 } else if e.contains("GPU") || e.contains("渲染") {
-                    warn!("渲染相关错误增加，总计: {}", self.render_errors);
+                    // render_errors 已经增加
                 } else if e.contains("窗口") {
                     self.window_errors += 1;
-                    warn!("窗口相关错误增加，总计: {}", self.window_errors);
-                }
-                
-                // 如果错误过多，记录警告
-                let total_errors = self.camera_errors + self.render_errors + self.window_errors + self.config_errors;
-                if total_errors > 10 && total_errors % 10 == 0 {
-                    warn!("累计错误数量较多: {} 个，应用可能不稳定", total_errors);
                 }
                 
                 Err(e)

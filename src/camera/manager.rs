@@ -224,7 +224,8 @@ impl CameraManager {
                     let width = resolution.width_x;
                     let height = resolution.height_y;
                     
-                    // 尝试解码图像数据（处理 MJPEG 等压缩格式）
+                    // 解码图像数据（处理 MJPEG 等压缩格式）
+                    // 使用 decode_image 而不是 buffer，确保获取解码后的 RGB 数据
                     let data = match frame.decode_image::<RgbFormat>() {
                         Ok(decoded_buffer) => {
                             debug!("成功解码图像数据: {}x{}", width, height);
@@ -240,13 +241,13 @@ impl CameraManager {
                     // 验证数据大小
                     let expected_size = (width * height * 3) as usize; // RGB8 格式
                     if data.len() != expected_size {
-                        error!("摄像头帧数据大小不匹配: 实际 {} 字节, 期望 {} 字节 ({}x{}x3)", 
+                        warn!("摄像头帧数据大小不匹配: 实际 {} 字节, 期望 {} 字节 ({}x{}x3)", 
                                data.len(), expected_size, width, height);
                         
                         // 如果数据不完整，尝试重试
                         if attempt < self.max_retries {
-                            warn!("帧数据不完整，尝试重新捕获 ({}/{})", attempt + 1, self.max_retries + 1);
-                            std::thread::sleep(std::time::Duration::from_millis(100));
+                            debug!("帧数据不完整，尝试重新捕获 ({}/{})", attempt + 1, self.max_retries + 1);
+                            std::thread::sleep(std::time::Duration::from_millis(50));
                             continue;
                         } else {
                             return Err(CameraError::CaptureError(format!(
@@ -262,7 +263,7 @@ impl CameraManager {
                         data,
                         width,
                         height,
-                        format: PixelFormat::RGB8, // nokhwa 默认返回 RGB8 格式
+                        format: PixelFormat::RGB8,
                     });
                 }
                 Err(e) => {
