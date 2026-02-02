@@ -181,12 +181,13 @@ impl WindowManager {
             let new_x = cursor_pos.x - self.drag_offset.x;
             let new_y = cursor_pos.y - self.drag_offset.y;
             
-            // 应用边界约束
-            let constrained_pos = self.constrain_position(PhysicalPosition::new(new_x, new_y));
+            // 拖拽时跳过边界约束检查以提高响应速度
+            // 边界约束会在拖拽结束时应用
+            let new_pos = PhysicalPosition::new(new_x, new_y);
             
             // 直接更新位置，避免额外的验证开销以确保响应时间 < 16ms
-            self.position = constrained_pos;
-            self.window.set_outer_position(constrained_pos);
+            self.position = new_pos;
+            self.window.set_outer_position(new_pos);
         }
     }
     
@@ -194,6 +195,14 @@ impl WindowManager {
     pub fn end_drag(&mut self) {
         if self.is_dragging {
             self.is_dragging = false;
+            
+            // 在拖拽结束时应用边界约束
+            let constrained_pos = self.constrain_position(self.position);
+            if constrained_pos != self.position {
+                self.position = constrained_pos;
+                self.window.set_outer_position(constrained_pos);
+            }
+            
             info!("结束拖拽，最终位置: ({:.1}, {:.1})", self.position.x, self.position.y);
         }
     }

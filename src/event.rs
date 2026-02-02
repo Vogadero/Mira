@@ -193,10 +193,9 @@ impl EventHandler {
     fn handle_mouse_move(&mut self, position: PhysicalPosition<f64>) {
         self.last_cursor_pos = position;
         
-        // 如果正在拖拽，更新窗口位置
+        // 如果正在拖拽，更新窗口位置（移除日志以提高性能）
         if self.window_manager.is_dragging() {
             self.window_manager.update_drag(position);
-            debug!("拖拽更新位置: ({:.1}, {:.1})", position.x, position.y);
         }
     }
     
