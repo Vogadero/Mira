@@ -227,6 +227,12 @@ pub enum WindowError {
 ### 3. 渲染引擎 (RenderEngine)
 
 ```rust
+/// UI渲染信息
+pub struct UIRenderInfo {
+    pub show_controls: bool,
+    pub window_size: PhysicalSize<u32>,
+}
+
 pub struct RenderEngine {
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -234,6 +240,11 @@ pub struct RenderEngine {
     pipeline: wgpu::RenderPipeline,
     video_texture: Option<wgpu::Texture>,
     mask_texture: Option<wgpu::Texture>,
+    
+    // UI 渲染组件
+    ui_pipeline: Option<wgpu::RenderPipeline>,
+    ui_vertex_buffer: Option<wgpu::Buffer>,
+    ui_uniform_buffer: Option<wgpu::Buffer>,
 }
 
 impl RenderEngine {
@@ -246,8 +257,25 @@ impl RenderEngine {
     /// 设置形状遮罩
     pub fn set_mask(&mut self, mask: &ShapeMask) -> Result<(), RenderError>;
     
-    /// 渲染一帧
-    pub fn render(&mut self, rotation: f32) -> Result<(), RenderError>;
+    /// 渲染一帧（带UI控件）
+    pub fn render_with_ui(&mut self, rotation: f32, ui_info: &UIRenderInfo) -> Result<(), RenderError>;
+    
+    /// 渲染UI控件（关闭和最小化按钮）
+    fn render_ui_controls(
+        &mut self,
+        encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+        ui_info: &UIRenderInfo,
+    ) -> Result<(), RenderError>;
+    
+    /// 渲染单个按钮
+    fn render_button(
+        &self,
+        render_pass: &mut wgpu::RenderPass,
+        x: f32, y: f32, size: f32,
+        color: [f32; 4],
+        symbol: &str,
+    );
     
     /// 调整表面大小
     pub fn resize(&mut self, width: u32, height: u32);
@@ -257,6 +285,7 @@ pub enum RenderError {
     InitializationFailed(String),
     TextureUploadFailed,
     RenderFailed(String),
+    UIRenderFailed(String),
 }
 ```
 
@@ -372,6 +401,11 @@ pub struct EventHandler {
     render_engine: RenderEngine,
     shape_mask: ShapeMask,
     last_cursor_pos: PhysicalPosition<f64>,
+    
+    // UI 控制状态
+    is_hovering: bool,
+    hover_start_time: std::time::Instant,
+    show_controls: bool,
 }
 
 impl EventHandler {
@@ -403,6 +437,9 @@ impl EventHandler {
     
     /// 渲染一帧
     pub fn render_frame(&mut self) -> Result<(), String>;
+    
+    /// 显示右键上下文菜单
+    fn show_context_menu(&mut self, position: PhysicalPosition<f64>);
 }
 ```
 
@@ -462,31 +499,23 @@ device_index = 0
 graph LR
     A[摄像头帧] --> B[上传到 GPU 纹理]
     C[形状遮罩] --> D[上传到 GPU 纹理]
-    B --> E[顶点着色器]
+    B --> E[主渲染通道]
     D --> E
-    E --> F[片段着色器]
-    F --> G[应用遮罩]
-    G --> H[应用旋转]
-    H --> I[输出到窗口]
+    E --> F[视频内容渲染]
+    F --> G[UI 渲染通道]
+    G --> H[控制按钮渲染]
+    G --> I[上下文菜单渲染]
+    H --> J[最终合成]
+    I --> J
+    J --> K[输出到窗口]
 ```
 
 ### 着色器设计
 
-**顶点着色器** (vertex shader):
+**主视频着色器** (shader.wgsl):
 ```rust
-// 伪代码
-struct VertexInput {
-    position: vec2<f32>,
-    tex_coords: vec2<f32>,
-}
-
-struct VertexOutput {
-    position: vec4<f32>,
-    tex_coords: vec2<f32>,
-}
-
+// 顶点着色器 - 处理视频内容的旋转变换
 fn vs_main(input: VertexInput, rotation: f32) -> VertexOutput {
-    // 应用旋转变换
     let cos_r = cos(rotation);
     let sin_r = sin(rotation);
     let rotated_x = input.position.x * cos_r - input.position.y * sin_r;
@@ -497,28 +526,32 @@ fn vs_main(input: VertexInput, rotation: f32) -> VertexOutput {
         tex_coords: input.tex_coords,
     };
 }
+
+// 片段着色器 - 应用形状遮罩
+fn fs_main(input: FragmentInput) -> vec4<f32> {
+    let video_color = sample(video_texture, input.tex_coords);
+    let mask_alpha = sample(mask_texture, input.tex_coords).a;
+    return vec4(video_color.rgb, video_color.a * mask_alpha);
+}
 ```
 
-**片段着色器** (fragment shader):
+**UI 着色器** (ui_shader.wgsl):
 ```rust
-// 伪代码
-struct FragmentInput {
-    tex_coords: vec2<f32>,
+// UI 顶点着色器 - 处理 2D UI 元素
+fn ui_vs_main(input: UIVertexInput) -> UIVertexOutput {
+    // 将像素坐标转换为 NDC 坐标
+    let ndc_x = (input.position.x / window_width) * 2.0 - 1.0;
+    let ndc_y = 1.0 - (input.position.y / window_height) * 2.0;
+    
+    return UIVertexOutput {
+        position: vec4(ndc_x, ndc_y, 0.0, 1.0),
+        color: input.color,
+    };
 }
 
-fn fs_main(
-    input: FragmentInput,
-    video_texture: Texture2D,
-    mask_texture: Texture2D,
-) -> vec4<f32> {
-    // 采样视频纹理
-    let video_color = sample(video_texture, input.tex_coords);
-    
-    // 采样遮罩纹理（alpha 通道）
-    let mask_alpha = sample(mask_texture, input.tex_coords).a;
-    
-    // 应用遮罩
-    return vec4(video_color.rgb, video_color.a * mask_alpha);
+// UI 片段着色器 - 渲染半透明 UI 元素
+fn ui_fs_main(input: UIVertexInput) -> vec4<f32> {
+    return input.color; // 直接使用顶点颜色，支持透明度
 }
 ```
 
@@ -687,6 +720,56 @@ fn is_inside_heart(x: f32, y: f32) -> bool {
 **属性 21: 无内存泄漏**
 *对于任何* 重复执行的操作序列（打开/关闭设备、切换形状、拖拽窗口），执行 N 次后的内存占用应该与执行 1 次后的内存占用相近（允许合理的缓存增长）。
 **验证需求: 10.6**
+
+### UI 控制属性
+
+**属性 22: UI 控件悬浮显示**
+*对于任何* 鼠标进入窗口区域的事件，如果鼠标在窗口内停留超过 500 毫秒，则应该显示控制按钮。
+**验证需求: 12.1, 12.2**
+
+**属性 23: UI 控件点击响应**
+*对于任何* 在控制按钮区域内的鼠标点击事件，系统应该执行相应的操作（关闭或最小化）。
+**验证需求: 12.5, 12.6**
+
+**属性 24: UI 控件视觉渲染**
+*对于任何* 显示控制按钮的状态，应该在窗口右上角渲染可见的按钮图形（红色关闭按钮和灰色最小化按钮）。
+**验证需求: 12.3, 12.4, 12.8, 12.9**
+
+**属性 25: 右键菜单显示**
+*对于任何* 在窗口区域内的右键点击事件，系统应该在鼠标位置附近显示上下文菜单。
+**验证需求: 13.1, 13.9**
+
+**属性 26: 右键菜单功能执行**
+*对于任何* 上下文菜单项的选择，系统应该执行相应的功能并隐藏菜单。
+**验证需求: 13.6, 13.7**
+
+### 形状差异化属性
+
+**属性 27: 椭圆形与圆形差异**
+*对于任何* 非正方形的窗口尺寸，椭圆形遮罩应该明显不同于圆形遮罩，椭圆形应该适应窗口宽高比。
+**验证需求: 14.1, 14.2**
+
+**属性 28: 心形大小适当性**
+*对于任何* 窗口尺寸，心形遮罩应该占据窗口面积的至少 60%，确保清晰可见。
+**验证需求: 14.4, 14.5**
+
+**属性 29: 形状边缘平滑性**
+*对于任何* 形状遮罩，边缘应该平滑无锯齿，提供良好的视觉质量。
+**验证需求: 14.7**
+
+### 拖拽性能属性
+
+**属性 30: 拖拽超低延迟**
+*对于任何* 拖拽过程中的鼠标移动事件，系统应该在 8 毫秒内更新窗口位置。
+**验证需求: 15.1, 15.2**
+
+**属性 31: 拖拽位置精度**
+*对于任何* 拖拽操作，窗口位置应该与鼠标位置完全同步，位置变化精度应该达到 0.05 像素。
+**验证需求: 15.3**
+
+**属性 32: 拖拽性能隔离**
+*对于任何* 拖拽操作，不应该影响视频渲染帧率，系统应该保持 30+ FPS。
+**验证需求: 15.6**
 
 
 
