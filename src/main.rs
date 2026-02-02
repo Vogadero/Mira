@@ -237,7 +237,7 @@ impl MiraApp {
         Ok(Self {
             event_handler,
             last_frame_time: Instant::now(),
-            target_frame_duration: Duration::from_millis(33), // 30+ FPS
+            target_frame_duration: Duration::from_millis(50), // 20 FPS（降低以减少渲染开销，优先拖拽流畅度）
             
             // 性能监控初始化
             performance_monitor,
@@ -611,20 +611,34 @@ async fn run_application() -> Result<(), Box<dyn std::error::Error>> {
             Event::WindowEvent { event, window_id } => {
                 // 确保事件来自我们的窗口
                 if window_id == app.window().id() {
-                    // 处理窗口事件
-                    let should_exit = app.handle_event(&event);
-                    if should_exit {
-                        info!("收到退出请求，正在关闭应用程序");
-                        event_loop.exit();
-                    }
-                    
-                    // 处理重绘请求
-                    if matches!(event, WindowEvent::RedrawRequested) {
-                        // 渲染一帧
-                        if let Err(e) = app.render_frame() {
-                            error!("渲染帧失败: {}", e);
-                            // 记录错误但不退出应用，尝试恢复
-                            warn!("尝试继续运行，可能会影响性能");
+                    // 优先处理鼠标事件以确保拖拽流畅
+                    match &event {
+                        WindowEvent::CursorMoved { .. } | 
+                        WindowEvent::MouseInput { .. } => {
+                            // 立即处理鼠标事件，不等待渲染
+                            let should_exit = app.handle_event(&event);
+                            if should_exit {
+                                info!("收到退出请求，正在关闭应用程序");
+                                event_loop.exit();
+                            }
+                        }
+                        WindowEvent::RedrawRequested => {
+                            // 渲染一帧
+                            if let Err(e) = app.render_frame() {
+                                #[cfg(debug_assertions)]
+                                error!("渲染帧失败: {}", e);
+                                // 记录错误但不退出应用，尝试恢复
+                                #[cfg(debug_assertions)]
+                                warn!("尝试继续运行，可能会影响性能");
+                            }
+                        }
+                        _ => {
+                            // 处理其他窗口事件
+                            let should_exit = app.handle_event(&event);
+                            if should_exit {
+                                info!("收到退出请求，正在关闭应用程序");
+                                event_loop.exit();
+                            }
                         }
                     }
                 }

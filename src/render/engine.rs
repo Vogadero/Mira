@@ -386,11 +386,11 @@ impl RenderEngine {
 
         info!("渲染引擎初始化完成");
         
-        // 初始化内存管理组件
+        // 初始化内存管理组件 - 极大缓冲区池以确保零临时分配
         let frame_buffer_pool = Arc::new(FrameBufferPool::new(
             1920 * 1080 * 4, // 最大支持 1080p RGBA 帧
-            8,               // 初始缓冲区数量（增加以减少动态分配）
-            32,              // 最大缓冲区数量（大幅增加以避免临时分配，优先流畅度）
+            16,              // 初始缓冲区数量（大量预分配）
+            64,              // 最大缓冲区数量（极大值，优先流畅度）
         ));
         
         let texture_manager = TextureManager::new(
