@@ -174,20 +174,22 @@ impl WindowManager {
         info!("开始拖拽，偏移量: ({:.1}, {:.1})", self.drag_offset.x, self.drag_offset.y);
     }
     
-    /// 更新拖拽位置
+    /// 更新拖拽位置（极限优化版本）
     pub fn update_drag(&mut self, cursor_pos: PhysicalPosition<f64>) {
         if self.is_dragging {
             // 计算新位置（考虑拖拽偏移量）
             let new_x = cursor_pos.x - self.drag_offset.x;
             let new_y = cursor_pos.y - self.drag_offset.y;
             
-            // 拖拽时跳过边界约束检查以提高响应速度
-            // 边界约束会在拖拽结束时应用
             let new_pos = PhysicalPosition::new(new_x, new_y);
             
-            // 直接更新位置，避免额外的验证开销以确保响应时间 < 16ms
-            self.position = new_pos;
-            self.window.set_outer_position(new_pos);
+            // 只有位置真正改变时才更新（避免重复调用）
+            if (new_pos.x - self.position.x).abs() > 0.5 || (new_pos.y - self.position.y).abs() > 0.5 {
+                self.position = new_pos;
+                
+                // 使用 set_outer_position 的同时，尝试减少调用频率
+                self.window.set_outer_position(new_pos);
+            }
         }
     }
     
@@ -356,6 +358,12 @@ impl WindowManager {
     /// 检查是否正在拖拽
     pub fn is_dragging(&self) -> bool {
         self.is_dragging
+    }
+    
+    /// 最小化窗口
+    pub fn minimize(&self) {
+        self.window.set_minimized(true);
+        info!("窗口已最小化");
     }
     
     /// 获取拖拽偏移量（用于测试）

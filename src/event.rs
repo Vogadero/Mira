@@ -24,6 +24,11 @@ pub struct EventHandler {
     last_cursor_pos: PhysicalPosition<f64>,
     modifiers_state: ModifiersState,
     is_ctrl_pressed: bool,
+    
+    // UI 控制状态
+    is_hovering: bool,
+    hover_start_time: std::time::Instant,
+    show_controls: bool,
 }
 
 impl EventHandler {
@@ -46,6 +51,11 @@ impl EventHandler {
             last_cursor_pos: PhysicalPosition::new(0.0, 0.0),
             modifiers_state: ModifiersState::empty(),
             is_ctrl_pressed: false,
+            
+            // UI 控制状态初始化
+            is_hovering: false,
+            hover_start_time: std::time::Instant::now(),
+            show_controls: false,
         }
     }
     
@@ -159,10 +169,42 @@ impl EventHandler {
         self.is_ctrl_pressed
     }
     
-    /// 处理鼠标按下事件（开始拖拽）
+    /// 处理鼠标按下事件（开始拖拽或点击控制按钮）
     fn handle_mouse_press(&mut self, button: MouseButton, position: PhysicalPosition<f64>) {
         match button {
             MouseButton::Left => {
+                // 检查是否点击了控制按钮
+                if self.show_controls {
+                    let window_size = self.window_manager.size();
+                    let button_size = 20.0;
+                    let margin = 5.0;
+                    
+                    // 关闭按钮位置（右上角）
+                    let close_x = window_size.width as f64 - button_size - margin;
+                    let close_y = margin;
+                    
+                    // 最小化按钮位置（关闭按钮左边）
+                    let minimize_x = close_x - button_size - margin;
+                    let minimize_y = margin;
+                    
+                    // 检查点击位置
+                    if position.x >= close_x && position.x <= close_x + button_size
+                    && position.y >= close_y && position.y <= close_y + button_size {
+                        // 点击关闭按钮
+                        info!("用户点击关闭按钮");
+                        // 这里需要发送关闭事件，暂时先记录
+                        return;
+                    }
+                    
+                    if position.x >= minimize_x && position.x <= minimize_x + button_size
+                    && position.y >= minimize_y && position.y <= minimize_y + button_size {
+                        // 点击最小化按钮
+                        info!("用户点击最小化按钮");
+                        self.window_manager.minimize();
+                        return;
+                    }
+                }
+                
                 // 开始拖拽窗口
                 self.window_manager.start_drag(position);
                 info!("开始拖拽窗口，鼠标位置: ({:.1}, {:.1})", position.x, position.y);
@@ -189,9 +231,29 @@ impl EventHandler {
         }
     }
     
-    /// 处理鼠标移动事件（更新拖拽位置）
+    /// 处理鼠标移动事件（更新拖拽位置和悬浮状态）
     fn handle_mouse_move(&mut self, position: PhysicalPosition<f64>) {
         self.last_cursor_pos = position;
+        
+        // 检查是否在窗口区域内悬浮
+        let window_size = self.window_manager.size();
+        let is_inside = position.x >= 0.0 && position.y >= 0.0 
+                     && position.x <= window_size.width as f64 
+                     && position.y <= window_size.height as f64;
+        
+        // 更新悬浮状态
+        if is_inside && !self.is_hovering {
+            self.is_hovering = true;
+            self.hover_start_time = std::time::Instant::now();
+        } else if !is_inside && self.is_hovering {
+            self.is_hovering = false;
+            self.show_controls = false;
+        }
+        
+        // 悬浮超过500ms显示控制按钮
+        if self.is_hovering && self.hover_start_time.elapsed().as_millis() > 500 {
+            self.show_controls = true;
+        }
         
         // 如果正在拖拽，更新窗口位置（移除日志以提高性能）
         if self.window_manager.is_dragging() {
