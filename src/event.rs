@@ -5,6 +5,7 @@ use crate::config::ConfigManager;
 use crate::render::RenderEngine;
 use crate::shape::{ShapeMask, ShapeType};
 use crate::ui::{ContextMenu, MenuRenderer};
+use crate::ui::context_menu::MenuState;
 use crate::window::WindowManager;
 use log::{debug, error, info, warn};
 use winit::{
@@ -246,7 +247,7 @@ impl EventHandler {
     
     /// 隐藏上下文菜单
     fn hide_context_menu(&mut self) {
-        if self.context_menu.state() != &crate::ui::context_menu::MenuState::Hidden {
+        if self.context_menu.state() != &MenuState::Hidden {
             debug!("隐藏上下文菜单");
             self.context_menu.hide();
         }
@@ -356,8 +357,7 @@ impl EventHandler {
                 if self.context_menu.is_point_inside(menu_position) {
                     if let Some(item_id) = self.context_menu.get_item_at_position(menu_position) {
                         // 执行菜单项
-                        let item_id_owned = item_id.to_string();
-                        if let Err(e) = self.handle_menu_item_click(&item_id_owned) {
+                        if let Err(e) = self.handle_menu_item_click(item_id) {
                             error!("执行菜单项失败: {}", e);
                         }
                         // 隐藏菜单
@@ -444,7 +444,7 @@ impl EventHandler {
         if self.context_menu.is_point_inside(menu_position) {
             // 更新菜单悬浮状态
             if let Some(item_id) = self.context_menu.get_item_at_position(menu_position) {
-                self.context_menu.set_hovered_item(Some(item_id.to_string()));
+                self.context_menu.set_hovered_item(Some(item_id.to_owned()));
             } else {
                 self.context_menu.set_hovered_item(None);
             }
