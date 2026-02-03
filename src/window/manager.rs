@@ -1148,8 +1148,6 @@ mod tests {
         // 由于TestWindowManager的简化实现，这里主要验证逻辑流程
         assert!(final_pos.x >= -320.0); // 基本边界检查
     }
-    }
-    }
     
     #[test]
     fn test_drag_with_boundary_constraints() {
