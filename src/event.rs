@@ -3,11 +3,12 @@
 use crate::camera::CameraManager;
 use crate::config::ConfigManager;
 use crate::render::RenderEngine;
-use crate::shape::ShapeMask;
+use crate::shape::{ShapeMask, ShapeType};
+use crate::ui::{ContextMenu, MenuRenderer};
 use crate::window::WindowManager;
 use log::{debug, error, info, warn};
 use winit::{
-    dpi::PhysicalPosition,
+    dpi::{PhysicalPosition, PhysicalSize},
     event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta, WindowEvent},
     keyboard::{Key, NamedKey, ModifiersState},
 };
@@ -29,6 +30,12 @@ pub struct EventHandler {
     is_hovering: bool,
     hover_start_time: std::time::Instant,
     show_controls: bool,
+    close_button_hovered: bool,
+    minimize_button_hovered: bool,
+    
+    // 上下文菜单
+    context_menu: ContextMenu,
+    menu_renderer: Option<MenuRenderer>,
 }
 
 impl EventHandler {
@@ -42,7 +49,7 @@ impl EventHandler {
     ) -> Self {
         info!("创建事件处理器");
         
-        Self {
+        let mut handler = Self {
             window_manager,
             camera_manager,
             render_engine,
@@ -56,7 +63,45 @@ impl EventHandler {
             is_hovering: false,
             hover_start_time: std::time::Instant::now(),
             show_controls: false,
+            close_button_hovered: false,
+            minimize_button_hovered: false,
+            
+            // 上下文菜单初始化
+            context_menu: ContextMenu::new(PhysicalSize::new(1920, 1080)), // 默认屏幕尺寸，会在运行时更新
+            menu_renderer: None, // 延迟初始化
+        };
+        
+        // 设置菜单回调函数
+        handler.setup_menu_callbacks();
+        
+        handler
+    }
+    
+    /// 设置菜单回调函数
+    fn setup_menu_callbacks(&mut self) {
+        debug!("设置菜单回调函数");
+        
+        // 由于Rust的借用检查器限制，我们不能在这里直接设置回调
+        // 回调函数将在handle_menu_item_click方法中直接处理
+        // 这是一个简化的实现，实际应用中可能需要更复杂的回调系统
+    }
+    
+    /// 初始化菜单渲染器
+    pub fn init_menu_renderer(&mut self, device: wgpu::Device, queue: wgpu::Queue, surface_format: wgpu::TextureFormat) -> Result<(), String> {
+        debug!("初始化菜单渲染器");
+        
+        match MenuRenderer::new(device, queue, surface_format) {
+            Ok(renderer) => {
+                self.menu_renderer = Some(renderer);
+                info!("菜单渲染器初始化成功");
+                Ok(())
+            }
+            Err(e) => {
+                error!("菜单渲染器初始化失败: {}", e);
+                Err(e)
+            }
         }
+    }
     }
     
     /// 处理窗口事件
@@ -161,41 +206,136 @@ impl EventHandler {
     
     /// 显示右键上下文菜单
     fn show_context_menu(&mut self, position: PhysicalPosition<f64>) {
-        // 显示详细的右键菜单信息
-        info!("=== 右键上下文菜单 ===");
-        info!("鼠标位置: ({:.1}, {:.1})", position.x, position.y);
-        info!("");
-        info!("🎭 形状切换:");
-        info!("   F1 - 圆形 ⭕");
-        info!("   F2 - 椭圆形 ⭕");
-        info!("   F3 - 矩形 ⬜");
-        info!("   F4 - 圆角矩形 ▢");
-        info!("   F5 - 心形 ❤️");
-        info!("   空格 - 循环切换");
-        info!("");
-        info!("🎮 窗口控制:");
-        info!("   鼠标滚轮 - 缩放 (±10%)");
-        info!("   Ctrl+滚轮 - 旋转 (±15°)");
-        info!("   拖拽 - 移动窗口");
-        info!("   R - 重置位置和旋转");
-        info!("");
-        info!("📹 摄像头:");
-        info!("   Tab - 切换设备");
-        info!("   当前设备: {}", 
-              self.camera_manager.current_device()
-                  .map(|d| d.name.as_str())
-                  .unwrap_or("未知"));
-        info!("");
-        info!("ℹ️  当前状态:");
-        info!("   形状: {:?}", self.shape_mask.shape_type());
-        info!("   尺寸: {}x{}", self.window_manager.size().width, self.window_manager.size().height);
-        info!("   位置: ({:.0}, {:.0})", self.window_manager.position().x, self.window_manager.position().y);
-        info!("   旋转: {:.1}°", self.window_manager.rotation());
-        info!("========================");
+        info!("显示右键上下文菜单，位置: ({:.1}, {:.1})", position.x, position.y);
         
-        // TODO: 实现真正的可视化右键菜单
-        // 这需要创建一个浮动菜单窗口或使用GUI库
-        // 当前版本通过控制台日志提供功能说明
+        // 更新菜单状态信息
+        self.update_context_menu_status();
+        
+        // 显示菜单
+        let menu_position = PhysicalPosition::new(position.x as f32, position.y as f32);
+        self.context_menu.show(menu_position);
+        
+        debug!("上下文菜单已显示");
+    }
+    
+    /// 更新上下文菜单状态信息
+    fn update_context_menu_status(&mut self) {
+        // 更新摄像头设备列表
+        let devices: Vec<(usize, String)> = self.camera_manager.enumerate_devices()
+            .unwrap_or_default()
+            .into_iter()
+            .enumerate()
+            .map(|(i, info)| (i, info.name))
+            .collect();
+        
+        let current_device = self.camera_manager.current_device()
+            .map(|info| info.index);
+        
+        self.context_menu.update_camera_devices(&devices, current_device);
+        
+        // 更新状态信息
+        let window_size = self.window_manager.size();
+        let window_position = self.window_manager.position();
+        let rotation = self.window_manager.rotation();
+        
+        self.context_menu.update_status_info(window_size, window_position, rotation);
+        
+        // 更新屏幕尺寸
+        // 注意：这里使用窗口尺寸作为近似，实际应用中应该获取真实的屏幕尺寸
+        self.context_menu.update_screen_size(PhysicalSize::new(1920, 1080));
+    }
+    
+    /// 隐藏上下文菜单
+    fn hide_context_menu(&mut self) {
+        if self.context_menu.state() != &crate::ui::context_menu::MenuState::Hidden {
+            debug!("隐藏上下文菜单");
+            self.context_menu.hide();
+        }
+    }
+    
+    /// 处理菜单项点击
+    fn handle_menu_item_click(&mut self, item_id: &str) -> Result<(), String> {
+        info!("执行菜单项: {}", item_id);
+        
+        match item_id {
+            // 形状切换
+            "shape_circle" => {
+                self.shape_mask.set_shape(ShapeType::Circle);
+                info!("切换到圆形");
+            }
+            "shape_ellipse" => {
+                self.shape_mask.set_shape(ShapeType::Ellipse);
+                info!("切换到椭圆形");
+            }
+            "shape_rectangle" => {
+                self.shape_mask.set_shape(ShapeType::Rectangle);
+                info!("切换到矩形");
+            }
+            "shape_rounded_rectangle" => {
+                self.shape_mask.set_shape(ShapeType::RoundedRectangle { radius: 20.0 });
+                info!("切换到圆角矩形");
+            }
+            "shape_heart" => {
+                self.shape_mask.set_shape(ShapeType::Heart);
+                info!("切换到心形");
+            }
+            
+            // 摄像头设备切换
+            item_id if item_id.starts_with("camera_") => {
+                if let Ok(device_index) = item_id.strip_prefix("camera_").unwrap().parse::<usize>() {
+                    match self.camera_manager.open_device(device_index) {
+                        Ok(()) => {
+                            info!("切换到摄像头设备 {}", device_index);
+                        }
+                        Err(e) => {
+                            error!("切换摄像头设备失败: {}", e);
+                            return Err(format!("切换摄像头设备失败: {}", e));
+                        }
+                    }
+                } else {
+                    return Err("无效的摄像头设备ID".to_string());
+                }
+            }
+            
+            // 窗口控制
+            "reset_position" => {
+                self.window_manager.set_position(100.0, 100.0);
+                info!("重置窗口位置");
+            }
+            "reset_rotation" => {
+                self.window_manager.set_rotation(0.0);
+                info!("重置窗口旋转");
+            }
+            "reset_size" => {
+                self.window_manager.set_size(400, 400);
+                info!("重置窗口大小");
+            }
+            
+            // 状态信息
+            "show_info" => {
+                let window_size = self.window_manager.size();
+                let window_position = self.window_manager.position();
+                let rotation = self.window_manager.rotation();
+                let current_device = self.camera_manager.current_device()
+                    .map(|d| d.name.as_str())
+                    .unwrap_or("未知");
+                
+                info!("=== 当前状态 ===");
+                info!("形状: {:?}", self.shape_mask.shape_type());
+                info!("尺寸: {}x{}", window_size.width, window_size.height);
+                info!("位置: ({:.0}, {:.0})", window_position.x, window_position.y);
+                info!("旋转: {:.1}°", rotation);
+                info!("摄像头: {}", current_device);
+                info!("================");
+            }
+            
+            _ => {
+                warn!("未知的菜单项: {}", item_id);
+                return Err(format!("未知的菜单项: {}", item_id));
+            }
+        }
+        
+        Ok(())
     }
     
     /// 获取当前鼠标位置
@@ -212,6 +352,23 @@ impl EventHandler {
     fn handle_mouse_press(&mut self, button: MouseButton, position: PhysicalPosition<f64>) {
         match button {
             MouseButton::Left => {
+                // 首先检查是否点击了上下文菜单
+                let menu_position = PhysicalPosition::new(position.x as f32, position.y as f32);
+                if self.context_menu.is_point_inside(menu_position) {
+                    if let Some(item_id) = self.context_menu.get_item_at_position(menu_position) {
+                        // 执行菜单项
+                        if let Err(e) = self.handle_menu_item_click(item_id) {
+                            error!("执行菜单项失败: {}", e);
+                        }
+                        // 隐藏菜单
+                        self.hide_context_menu();
+                    }
+                    return;
+                } else {
+                    // 点击菜单外区域，隐藏菜单
+                    self.hide_context_menu();
+                }
+                
                 // 检查是否点击了控制按钮
                 if self.show_controls {
                     let window_size = self.window_manager.size();
@@ -282,6 +439,21 @@ impl EventHandler {
     fn handle_mouse_move(&mut self, position: PhysicalPosition<f64>) {
         self.last_cursor_pos = position;
         
+        // 检查是否在上下文菜单内
+        let menu_position = PhysicalPosition::new(position.x as f32, position.y as f32);
+        if self.context_menu.is_point_inside(menu_position) {
+            // 更新菜单悬浮状态
+            if let Some(item_id) = self.context_menu.get_item_at_position(menu_position) {
+                self.context_menu.set_hovered_item(Some(item_id.to_string()));
+            } else {
+                self.context_menu.set_hovered_item(None);
+            }
+            return; // 在菜单内时不处理其他悬浮逻辑
+        } else {
+            // 鼠标不在菜单内，清除菜单悬浮状态
+            self.context_menu.set_hovered_item(None);
+        }
+        
         // 检查是否在窗口区域内悬浮
         let window_size = self.window_manager.size();
         let is_inside = position.x >= 0.0 && position.y >= 0.0 
@@ -295,17 +467,47 @@ impl EventHandler {
         } else if !is_inside && self.is_hovering {
             self.is_hovering = false;
             self.show_controls = false;
+            self.close_button_hovered = false;
+            self.minimize_button_hovered = false;
         }
         
         // 悬浮超过500ms显示控制按钮
         if self.is_hovering && self.hover_start_time.elapsed().as_millis() > 500 {
             self.show_controls = true;
+            
+            // 检查是否悬浮在按钮上
+            self.update_button_hover_states(position);
+        } else {
+            // 如果控制按钮未显示，重置悬浮状态
+            self.close_button_hovered = false;
+            self.minimize_button_hovered = false;
         }
         
         // 如果正在拖拽，更新窗口位置（移除日志以提高性能）
         if self.window_manager.is_dragging() {
             self.window_manager.update_drag(position);
         }
+    }
+    
+    /// 更新按钮悬浮状态
+    fn update_button_hover_states(&mut self, position: PhysicalPosition<f64>) {
+        let window_size = self.window_manager.size();
+        
+        // 检查关闭按钮悬浮
+        self.close_button_hovered = self.render_engine.is_point_in_button(
+            position.x as f32,
+            position.y as f32,
+            "close",
+            window_size,
+        );
+        
+        // 检查最小化按钮悬浮
+        self.minimize_button_hovered = self.render_engine.is_point_in_button(
+            position.x as f32,
+            position.y as f32,
+            "minimize",
+            window_size,
+        );
     }
     
     /// 处理鼠标滚轮事件（缩放或旋转）
@@ -586,6 +788,8 @@ impl EventHandler {
         let ui_info = crate::render::engine::UIRenderInfo {
             show_controls: self.show_controls,
             window_size: self.window_manager.size(),
+            close_button_hovered: self.close_button_hovered,
+            minimize_button_hovered: self.minimize_button_hovered,
         };
         
         // 调用渲染引擎渲染当前帧

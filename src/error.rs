@@ -48,6 +48,8 @@ pub enum RenderError {
     TextureUploadFailed,
     /// 渲染失败
     RenderFailed(String),
+    /// UI 渲染失败
+    UIRenderFailed(String),
 }
 
 /// 配置错误类型
@@ -109,6 +111,7 @@ impl fmt::Display for RenderError {
             }
             RenderError::TextureUploadFailed => write!(f, "纹理上传失败"),
             RenderError::RenderFailed(msg) => write!(f, "渲染失败: {}", msg),
+            RenderError::UIRenderFailed(msg) => write!(f, "UI 渲染失败: {}", msg),
         }
     }
 }
@@ -199,6 +202,9 @@ mod tests {
 
         let err = RenderError::RenderFailed("test".to_string());
         assert!(err.to_string().contains("渲染失败"));
+
+        let err = RenderError::UIRenderFailed("test".to_string());
+        assert!(err.to_string().contains("UI 渲染失败"));
     }
 
     #[test]

@@ -9,6 +9,7 @@ pub mod memory;
 pub mod performance;
 pub mod render;
 pub mod shape;
+pub mod ui;
 pub mod window;
 
 // 重新导出常用类型

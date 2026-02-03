@@ -14,6 +14,73 @@ use winit::dpi::PhysicalSize;
 pub struct UIRenderInfo {
     pub show_controls: bool,
     pub window_size: PhysicalSize<u32>,
+    pub close_button_hovered: bool,
+    pub minimize_button_hovered: bool,
+}
+
+/// UI几何体数据
+struct UIGeometry {
+    vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
+    vertex_count: u32,
+    index_count: u32,
+}
+
+/// UI 顶点数据
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct UIVertex {
+    position: [f32; 2],  // 像素坐标
+    color: [f32; 4],     // 颜色（RGBA）
+}
+
+impl UIVertex {
+    const ATTRIBS: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![
+        0 => Float32x2,  // position
+        1 => Float32x4   // color
+    ];
+
+    fn desc() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<UIVertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &Self::ATTRIBS,
+        }
+    }
+}
+
+/// UI 统一缓冲区数据
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct UIUniforms {
+    window_size: [f32; 2],           // 窗口尺寸
+    close_button_pos: [f32; 2],      // 关闭按钮位置
+    minimize_button_pos: [f32; 2],   // 最小化按钮位置
+    button_size: f32,                // 按钮尺寸
+    _padding: f32,                   // 对齐填充
+}
+
+impl UIUniforms {
+    fn new(window_size: PhysicalSize<u32>) -> Self {
+        let button_size = 20.0;
+        let margin = 5.0;
+        let window_width = window_size.width as f32;
+        let window_height = window_size.height as f32;
+        
+        // 计算按钮位置
+        let close_x = window_width - button_size - margin;
+        let close_y = margin;
+        let minimize_x = close_x - button_size - margin;
+        let minimize_y = margin;
+        
+        Self {
+            window_size: [window_width, window_height],
+            close_button_pos: [close_x, close_y],
+            minimize_button_pos: [minimize_x, minimize_y],
+            button_size,
+            _padding: 0.0,
+        }
+    }
 }
 
 /// 渲染引擎内存统计信息
@@ -76,6 +143,13 @@ pub struct RenderEngine {
     index_buffer: wgpu::Buffer,
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
+    
+    // UI 渲染组件
+    ui_pipeline: Option<wgpu::RenderPipeline>,
+    ui_vertex_buffer: Option<wgpu::Buffer>,
+    ui_uniform_buffer: Option<wgpu::Buffer>,
+    ui_uniform_bind_group: Option<wgpu::BindGroup>,
+    ui_bind_group_layout: Option<wgpu::BindGroupLayout>,
     
     // 内存管理优化
     frame_buffer_pool: Arc<FrameBufferPool>,
@@ -422,6 +496,11 @@ impl RenderEngine {
             index_buffer,
             uniform_buffer,
             uniform_bind_group,
+            ui_pipeline: None,
+            ui_vertex_buffer: None,
+            ui_uniform_buffer: None,
+            ui_uniform_bind_group: None,
+            ui_bind_group_layout: None,
             frame_buffer_pool,
             texture_manager,
         })
@@ -619,6 +698,8 @@ impl RenderEngine {
         let ui_info = UIRenderInfo {
             show_controls: false,
             window_size: PhysicalSize::new(self.surface_config.width, self.surface_config.height),
+            close_button_hovered: false,
+            minimize_button_hovered: false,
         };
         self.render_with_ui(rotation, &ui_info)
     }
@@ -694,11 +775,11 @@ impl RenderEngine {
             label: Some("Render Encoder"),
         });
 
-        // 创建渲染通道
+        // 第一阶段：渲染主视频内容
         {
-            debug!("开始渲染通道");
+            debug!("开始主视频渲染通道");
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
+                label: Some("Main Video Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
@@ -717,7 +798,7 @@ impl RenderEngine {
                 timestamp_writes: None,
             });
 
-            // 设置渲染管线
+            // 设置主视频渲染管线
             render_pass.set_pipeline(&self.pipeline);
             
             // 绑定纹理
@@ -740,12 +821,22 @@ impl RenderEngine {
             
             // 绘制主视频内容
             render_pass.draw_indexed(0..INDICES.len() as u32, 0, 0..1);
-            debug!("绘制命令已提交，索引数量: {}", INDICES.len());
+            debug!("主视频内容绘制完成，索引数量: {}", INDICES.len());
         }
 
-        // 渲染UI控件（如果需要显示）
+        // 第二阶段：渲染UI控件（如果需要显示）
         if ui_info.show_controls {
-            self.render_ui_controls(&mut encoder, &view, ui_info)?;
+            debug!("开始UI控件渲染");
+            match self.render_ui_controls(&mut encoder, &view, ui_info) {
+                Ok(()) => {
+                    debug!("UI控件渲染成功");
+                }
+                Err(e) => {
+                    // UI渲染失败不应该影响主视频渲染
+                    warn!("UI控件渲染失败，但主视频内容正常: {}", e);
+                    // 继续执行，不返回错误
+                }
+            }
         }
 
         // 提交命令
@@ -768,6 +859,277 @@ impl RenderEngine {
     ) -> Result<(), RenderError> {
         debug!("渲染UI控件");
         
+        // 初始化 UI 渲染管线（如果尚未初始化）
+        if let Err(e) = self.init_ui_pipeline() {
+            error!("初始化 UI 渲染管线失败: {:?}", e);
+            return Err(RenderError::UIRenderFailed("UI 渲染管线初始化失败".to_string()));
+        }
+        
+        // 更新 UI 统一缓冲区
+        let ui_uniforms = UIUniforms::new(ui_info.window_size);
+        if let Some(ui_uniform_buffer) = &self.ui_uniform_buffer {
+            self.queue.write_buffer(ui_uniform_buffer, 0, bytemuck::cast_slice(&[ui_uniforms]));
+        } else {
+            error!("UI 统一缓冲区未初始化");
+            return Err(RenderError::UIRenderFailed("UI 统一缓冲区未初始化".to_string()));
+        }
+        
+        // 创建按钮几何体
+        let button_size = 20.0;
+        
+        // 根据悬浮状态调整按钮颜色
+        let close_color = if ui_info.close_button_hovered {
+            [1.0, 0.3, 0.3, 0.9] // 悬浮时更亮的红色
+        } else {
+            [0.8, 0.2, 0.2, 0.8] // 正常红色
+        };
+        
+        let minimize_color = if ui_info.minimize_button_hovered {
+            [0.6, 0.6, 0.6, 0.9] // 悬浮时更亮的灰色
+        } else {
+            [0.4, 0.4, 0.4, 0.8] // 正常灰色
+        };
+        
+        let symbol_color = [1.0, 1.0, 1.0, 1.0]; // 白色符号
+        
+        // 生成UI几何体数据
+        let ui_geometry = self.generate_ui_geometry(&ui_uniforms, button_size, close_color, minimize_color, symbol_color)
+            .map_err(|e| {
+                error!("生成UI几何体失败: {}", e);
+                RenderError::UIRenderFailed(format!("UI几何体生成失败: {}", e))
+            })?;
+        
+        // 创建UI渲染通道，确保在主视频内容之上渲染
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("UI Render Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load, // 保留之前的主视频内容
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None, // UI不需要深度测试，通过渲染顺序保证层次
+            occlusion_query_set: None,
+            timestamp_writes: None,
+        });
+        
+        // 设置 UI 渲染管线
+        if let Some(ui_pipeline) = &self.ui_pipeline {
+            render_pass.set_pipeline(ui_pipeline);
+            
+            // 绑定 UI 统一缓冲区
+            if let Some(ui_bind_group) = &self.ui_uniform_bind_group {
+                render_pass.set_bind_group(0, ui_bind_group, &[]);
+            } else {
+                error!("UI 绑定组未初始化");
+                return Err(RenderError::UIRenderFailed("UI 绑定组未初始化".to_string()));
+            }
+            
+            // 设置顶点和索引缓冲区
+            render_pass.set_vertex_buffer(0, ui_geometry.vertex_buffer.slice(..));
+            render_pass.set_index_buffer(ui_geometry.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            
+            // 绘制所有UI元素（按钮背景和符号）
+            render_pass.draw_indexed(0..ui_geometry.index_count, 0, 0..1);
+            
+            debug!("UI控件绘制完成，顶点数: {}, 索引数: {}", ui_geometry.vertex_count, ui_geometry.index_count);
+        } else {
+            error!("UI 渲染管线未初始化");
+            return Err(RenderError::UIRenderFailed("UI 渲染管线未初始化".to_string()));
+        }
+        
+        debug!("UI控件渲染完成");
+        Ok(())
+    }
+
+    /// 生成UI几何体数据
+    fn generate_ui_geometry(
+        &self,
+        ui_uniforms: &UIUniforms,
+        button_size: f32,
+        close_color: [f32; 4],
+        minimize_color: [f32; 4],
+        symbol_color: [f32; 4],
+    ) -> Result<UIGeometry, String> {
+        // 关闭按钮几何体（圆形背景）
+        let close_bg_vertices = self.create_button_geometry(
+            ui_uniforms.close_button_pos[0] + button_size / 2.0,
+            ui_uniforms.close_button_pos[1] + button_size / 2.0,
+            button_size,
+            close_color,
+        );
+        
+        // 关闭按钮符号（X）
+        let close_symbol_vertices = self.create_button_symbol(
+            ui_uniforms.close_button_pos[0] + button_size / 2.0,
+            ui_uniforms.close_button_pos[1] + button_size / 2.0,
+            button_size,
+            "×",
+            symbol_color,
+        );
+        
+        // 最小化按钮几何体（圆形背景）
+        let minimize_bg_vertices = self.create_button_geometry(
+            ui_uniforms.minimize_button_pos[0] + button_size / 2.0,
+            ui_uniforms.minimize_button_pos[1] + button_size / 2.0,
+            button_size,
+            minimize_color,
+        );
+        
+        // 最小化按钮符号（减号）
+        let minimize_symbol_vertices = self.create_button_symbol(
+            ui_uniforms.minimize_button_pos[0] + button_size / 2.0,
+            ui_uniforms.minimize_button_pos[1] + button_size / 2.0,
+            button_size,
+            "−",
+            symbol_color,
+        );
+        
+        // 合并所有顶点数据
+        let mut all_vertices = Vec::new();
+        all_vertices.extend(close_bg_vertices);
+        all_vertices.extend(close_symbol_vertices);
+        all_vertices.extend(minimize_bg_vertices);
+        all_vertices.extend(minimize_symbol_vertices);
+        
+        // 创建索引数据
+        let segments = 16;
+        let mut all_indices = Vec::new();
+        let mut vertex_offset = 0u16;
+        
+        // 关闭按钮背景索引
+        let close_bg_indices = self.create_button_indices(segments);
+        for &index in &close_bg_indices {
+            all_indices.push(index + vertex_offset);
+        }
+        vertex_offset += (segments + 2) as u16;
+        
+        // 关闭按钮符号索引（两条线，每条线4个顶点）
+        let close_symbol_indices = self.create_symbol_indices(vertex_offset, 8); // X符号有8个顶点
+        all_indices.extend(close_symbol_indices);
+        vertex_offset += 8;
+        
+        // 最小化按钮背景索引
+        let minimize_bg_indices = self.create_button_indices(segments);
+        for &index in &minimize_bg_indices {
+            all_indices.push(index + vertex_offset);
+        }
+        vertex_offset += (segments + 2) as u16;
+        
+        // 最小化按钮符号索引（一条线，4个顶点）
+        let minimize_symbol_indices = self.create_symbol_indices(vertex_offset, 4); // 减号有4个顶点
+        all_indices.extend(minimize_symbol_indices);
+        
+        // 创建GPU缓冲区
+        let vertex_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("UI Vertex Buffer"),
+            contents: bytemuck::cast_slice(&all_vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        
+        let index_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("UI Index Buffer"),
+            contents: bytemuck::cast_slice(&all_indices),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+        
+        Ok(UIGeometry {
+            vertex_buffer,
+            index_buffer,
+            vertex_count: all_vertices.len() as u32,
+            index_count: all_indices.len() as u32,
+        })
+    }
+            [0.4, 0.4, 0.4, 0.8] // 正常灰色
+        };
+        
+        let symbol_color = [1.0, 1.0, 1.0, 1.0]; // 白色符号
+        
+        // 关闭按钮几何体（圆形背景）
+        let close_bg_vertices = self.create_button_geometry(
+            ui_uniforms.close_button_pos[0] + button_size / 2.0,
+            ui_uniforms.close_button_pos[1] + button_size / 2.0,
+            button_size,
+            close_color,
+        );
+        
+        // 关闭按钮符号（X）
+        let close_symbol_vertices = self.create_button_symbol(
+            ui_uniforms.close_button_pos[0] + button_size / 2.0,
+            ui_uniforms.close_button_pos[1] + button_size / 2.0,
+            button_size,
+            "×",
+            symbol_color,
+        );
+        
+        // 最小化按钮几何体（圆形背景）
+        let minimize_bg_vertices = self.create_button_geometry(
+            ui_uniforms.minimize_button_pos[0] + button_size / 2.0,
+            ui_uniforms.minimize_button_pos[1] + button_size / 2.0,
+            button_size,
+            minimize_color,
+        );
+        
+        // 最小化按钮符号（减号）
+        let minimize_symbol_vertices = self.create_button_symbol(
+            ui_uniforms.minimize_button_pos[0] + button_size / 2.0,
+            ui_uniforms.minimize_button_pos[1] + button_size / 2.0,
+            button_size,
+            "−",
+            symbol_color,
+        );
+        
+        // 合并所有顶点数据
+        let mut all_vertices = Vec::new();
+        all_vertices.extend(close_bg_vertices);
+        all_vertices.extend(close_symbol_vertices);
+        all_vertices.extend(minimize_bg_vertices);
+        all_vertices.extend(minimize_symbol_vertices);
+        
+        // 创建索引数据
+        let segments = 16;
+        let mut all_indices = Vec::new();
+        let mut vertex_offset = 0u16;
+        
+        // 关闭按钮背景索引
+        let close_bg_indices = self.create_button_indices(segments);
+        for &index in &close_bg_indices {
+            all_indices.push(index + vertex_offset);
+        }
+        vertex_offset += (segments + 2) as u16;
+        
+        // 关闭按钮符号索引（两条线，每条线4个顶点）
+        let close_symbol_indices = self.create_symbol_indices(vertex_offset, 8); // X符号有8个顶点
+        all_indices.extend(close_symbol_indices);
+        vertex_offset += 8;
+        
+        // 最小化按钮背景索引
+        let minimize_bg_indices = self.create_button_indices(segments);
+        for &index in &minimize_bg_indices {
+            all_indices.push(index + vertex_offset);
+        }
+        vertex_offset += (segments + 2) as u16;
+        
+        // 最小化按钮符号索引（一条线，4个顶点）
+        let minimize_symbol_indices = self.create_symbol_indices(vertex_offset, 4); // 减号有4个顶点
+        all_indices.extend(minimize_symbol_indices);
+        
+        // 创建或更新 UI 顶点缓冲区
+        let ui_vertex_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("UI Vertex Buffer"),
+            contents: bytemuck::cast_slice(&all_vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        
+        // 创建 UI 索引缓冲区
+        let ui_index_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("UI Index Buffer"),
+            contents: bytemuck::cast_slice(&all_indices),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+        
         // 创建UI渲染通道
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("UI Render Pass"),
@@ -783,61 +1145,31 @@ impl RenderEngine {
             occlusion_query_set: None,
             timestamp_writes: None,
         });
-
-        // 计算按钮位置和尺寸
-        let button_size = 20.0;
-        let margin = 5.0;
-        let window_width = ui_info.window_size.width as f32;
-        let window_height = ui_info.window_size.height as f32;
         
-        // 关闭按钮位置（右上角）
-        let close_x = window_width - button_size - margin;
-        let close_y = margin;
-        
-        // 最小化按钮位置（关闭按钮左边）
-        let minimize_x = close_x - button_size - margin;
-        let minimize_y = margin;
-        
-        // 渲染关闭按钮（红色圆形，带白色X）
-        self.render_button(
-            &mut render_pass,
-            close_x, close_y, button_size,
-            [0.8, 0.2, 0.2, 0.8], // 半透明红色
-            "×", // 关闭符号
-        );
-        
-        // 渲染最小化按钮（灰色圆形，带白色减号）
-        self.render_button(
-            &mut render_pass,
-            minimize_x, minimize_y, button_size,
-            [0.4, 0.4, 0.4, 0.8], // 半透明灰色
-            "−", // 最小化符号
-        );
+        // 设置 UI 渲染管线
+        if let Some(ui_pipeline) = &self.ui_pipeline {
+            render_pass.set_pipeline(ui_pipeline);
+            
+            // 绑定 UI 统一缓冲区
+            if let Some(ui_bind_group) = &self.ui_uniform_bind_group {
+                render_pass.set_bind_group(0, ui_bind_group, &[]);
+            }
+            
+            // 设置顶点和索引缓冲区
+            render_pass.set_vertex_buffer(0, ui_vertex_buffer.slice(..));
+            render_pass.set_index_buffer(ui_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            
+            // 绘制所有按钮和符号
+            render_pass.draw_indexed(0..all_indices.len() as u32, 0, 0..1);
+            
+            debug!("UI控件绘制完成，顶点数: {}, 索引数: {}", all_vertices.len(), all_indices.len());
+        } else {
+            error!("UI 渲染管线未初始化");
+            return Err(RenderError::UIRenderFailed("UI 渲染管线未初始化".to_string()));
+        }
         
         debug!("UI控件渲染完成");
         Ok(())
-    }
-
-    /// 渲染单个按钮（简化实现，使用基本几何图形）
-    fn render_button(
-        &self,
-        render_pass: &mut wgpu::RenderPass,
-        x: f32, y: f32, size: f32,
-        color: [f32; 4],
-        _symbol: &str, // 暂时不实现文字渲染，只渲染背景
-    ) {
-        // 注意：这是一个简化的实现
-        // 在实际应用中，需要创建专门的UI渲染管线和着色器
-        // 这里我们只是记录按钮应该被渲染的位置
-        debug!("渲染按钮: 位置({:.1}, {:.1}), 尺寸{:.1}, 颜色{:?}", x, y, size, color);
-        
-        // TODO: 实现真正的按钮渲染
-        // 1. 创建圆形几何体
-        // 2. 应用颜色和透明度
-        // 3. 渲染符号（需要字体渲染系统）
-        
-        // 暂时只记录日志，实际的视觉渲染需要更复杂的实现
-        // 包括创建专门的UI顶点缓冲区、UI着色器等
     }
 
     /// 更新纹理绑定组
@@ -869,7 +1201,283 @@ impl RenderEngine {
         debug!("纹理绑定组更新完成");
     }
 
-    /// 转换帧格式为 RGBA
+    /// 初始化 UI 渲染管线
+    fn init_ui_pipeline(&mut self) -> Result<(), RenderError> {
+        if self.ui_pipeline.is_some() {
+            return Ok(()); // 已经初始化
+        }
+        
+        info!("初始化 UI 渲染管线");
+        
+        // 创建 UI 统一缓冲区布局
+        let ui_bind_group_layout = self.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+            label: Some("ui_bind_group_layout"),
+        });
+        
+        // 创建 UI 统一缓冲区
+        let ui_uniforms = UIUniforms::new(PhysicalSize::new(
+            self.surface_config.width,
+            self.surface_config.height,
+        ));
+        
+        let ui_uniform_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("UI Uniform Buffer"),
+            contents: bytemuck::cast_slice(&[ui_uniforms]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+        
+        // 创建 UI 统一缓冲区绑定组
+        let ui_uniform_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &ui_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: ui_uniform_buffer.as_entire_binding(),
+                },
+            ],
+            label: Some("ui_uniform_bind_group"),
+        });
+        
+        // 创建 UI 渲染管线布局
+        let ui_pipeline_layout = self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("UI Pipeline Layout"),
+            bind_group_layouts: &[&ui_bind_group_layout],
+            push_constant_ranges: &[],
+        });
+        
+        // 加载 UI 着色器
+        let ui_shader = self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("UI Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("ui_shader.wgsl").into()),
+        });
+        
+        // 创建 UI 渲染管线
+        let ui_pipeline = self.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("UI Render Pipeline"),
+            layout: Some(&ui_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &ui_shader,
+                entry_point: "ui_vs_main",
+                buffers: &[UIVertex::desc()],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &ui_shader,
+                entry_point: "ui_circle_fs_main", // 使用圆形按钮着色器
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: self.surface_config.format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING), // 支持透明度混合
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: None, // UI 元素不需要背面剔除
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+        });
+        
+        // 存储 UI 组件
+        self.ui_pipeline = Some(ui_pipeline);
+        self.ui_uniform_buffer = Some(ui_uniform_buffer);
+        self.ui_uniform_bind_group = Some(ui_uniform_bind_group);
+        self.ui_bind_group_layout = Some(ui_bind_group_layout);
+        
+        info!("UI 渲染管线初始化完成");
+        Ok(())
+    }
+
+    /// 创建按钮几何体（圆形）
+    fn create_button_geometry(&self, center_x: f32, center_y: f32, size: f32, color: [f32; 4]) -> Vec<UIVertex> {
+        let radius = size / 2.0;
+        let segments = 16; // 圆形近似的段数
+        let mut vertices = Vec::new();
+        
+        // 中心顶点
+        vertices.push(UIVertex {
+            position: [center_x, center_y],
+            color,
+        });
+        
+        // 圆周顶点
+        for i in 0..=segments {
+            let angle = 2.0 * std::f32::consts::PI * i as f32 / segments as f32;
+            let x = center_x + radius * angle.cos();
+            let y = center_y + radius * angle.sin();
+            
+            vertices.push(UIVertex {
+                position: [x, y],
+                color,
+            });
+        }
+        
+        vertices
+    }
+
+    /// 创建按钮索引（三角扇形）
+    fn create_button_indices(&self, segments: u32) -> Vec<u16> {
+        let mut indices = Vec::new();
+        
+        // 创建三角扇形索引
+        for i in 0..segments {
+            indices.push(0); // 中心点
+            indices.push((i + 1) as u16);
+            indices.push((i + 2) as u16);
+        }
+        
+        indices
+    }
+
+    /// 创建符号索引（用于线条几何体）
+    fn create_symbol_indices(&self, base_offset: u16, vertex_count: u16) -> Vec<u16> {
+        let mut indices = Vec::new();
+        
+        // 每4个顶点组成一条线（矩形）
+        for i in (0..vertex_count).step_by(4) {
+            let base = base_offset + i;
+            // 第一个三角形
+            indices.push(base);
+            indices.push(base + 1);
+            indices.push(base + 2);
+            // 第二个三角形
+            indices.push(base);
+            indices.push(base + 2);
+            indices.push(base + 3);
+        }
+        
+        indices
+    }
+
+    /// 创建按钮符号几何体（X 或减号）
+    fn create_button_symbol(&self, center_x: f32, center_y: f32, size: f32, symbol: &str, color: [f32; 4]) -> Vec<UIVertex> {
+        let mut vertices = Vec::new();
+        let symbol_size = size * 0.4; // 符号占按钮的 40%
+        let half_size = symbol_size / 2.0;
+        let line_width = 2.0; // 线条宽度
+        
+        match symbol {
+            "×" | "X" => {
+                // 创建 X 符号（两条对角线）
+                // 第一条对角线（左上到右下）
+                let line1_vertices = self.create_line_geometry(
+                    center_x - half_size, center_y - half_size,
+                    center_x + half_size, center_y + half_size,
+                    line_width, color
+                );
+                vertices.extend(line1_vertices);
+                
+                // 第二条对角线（右上到左下）
+                let line2_vertices = self.create_line_geometry(
+                    center_x + half_size, center_y - half_size,
+                    center_x - half_size, center_y + half_size,
+                    line_width, color
+                );
+                vertices.extend(line2_vertices);
+            }
+            "−" | "-" => {
+                // 创建减号符号（水平线）
+                let line_vertices = self.create_line_geometry(
+                    center_x - half_size, center_y,
+                    center_x + half_size, center_y,
+                    line_width, color
+                );
+                vertices.extend(line_vertices);
+            }
+            _ => {
+                // 不支持的符号，不添加任何几何体
+                debug!("不支持的按钮符号: {}", symbol);
+            }
+        }
+        
+        vertices
+    }
+
+    /// 创建线条几何体（矩形表示）
+    fn create_line_geometry(&self, x1: f32, y1: f32, x2: f32, y2: f32, width: f32, color: [f32; 4]) -> Vec<UIVertex> {
+        // 计算线条的方向向量
+        let dx = x2 - x1;
+        let dy = y2 - y1;
+        let length = (dx * dx + dy * dy).sqrt();
+        
+        if length == 0.0 {
+            return Vec::new(); // 零长度线条
+        }
+        
+        // 归一化方向向量
+        let dir_x = dx / length;
+        let dir_y = dy / length;
+        
+        // 计算垂直向量（用于线条宽度）
+        let perp_x = -dir_y * width / 2.0;
+        let perp_y = dir_x * width / 2.0;
+        
+        // 创建矩形的四个顶点
+        vec![
+            UIVertex { position: [x1 + perp_x, y1 + perp_y], color }, // 左上
+            UIVertex { position: [x1 - perp_x, y1 - perp_y], color }, // 左下
+            UIVertex { position: [x2 - perp_x, y2 - perp_y], color }, // 右下
+            UIVertex { position: [x2 + perp_x, y2 + perp_y], color }, // 右上
+        ]
+    }
+
+    /// 创建线条索引（两个三角形组成矩形）
+    fn create_line_indices(&self, base_index: u16) -> Vec<u16> {
+        vec![
+            base_index, base_index + 1, base_index + 2,     // 第一个三角形
+            base_index, base_index + 2, base_index + 3,     // 第二个三角形
+        ]
+    }
+
+    /// 检查点是否在按钮内（用于悬浮检测）
+    pub fn is_point_in_button(&self, x: f32, y: f32, button_type: &str, window_size: PhysicalSize<u32>) -> bool {
+        let ui_uniforms = UIUniforms::new(window_size);
+        let button_size = 20.0;
+        let radius = button_size / 2.0;
+        
+        let (button_x, button_y) = match button_type {
+            "close" => (
+                ui_uniforms.close_button_pos[0] + button_size / 2.0,
+                ui_uniforms.close_button_pos[1] + button_size / 2.0,
+            ),
+            "minimize" => (
+                ui_uniforms.minimize_button_pos[0] + button_size / 2.0,
+                ui_uniforms.minimize_button_pos[1] + button_size / 2.0,
+            ),
+            _ => return false,
+        };
+        
+        // 计算距离按钮中心的距离
+        let dx = x - button_x;
+        let dy = y - button_y;
+        let distance = (dx * dx + dy * dy).sqrt();
+        
+        // 检查是否在圆形按钮内
+        distance <= radius
+    }
     fn convert_frame_to_rgba(&self, frame: &Frame) -> Result<Vec<u8>, RenderError> {
         debug!("转换帧格式: {:?} -> RGBA8", frame.format);
         
@@ -1136,6 +1744,80 @@ mod tests {
         let uniforms = Uniforms::new();
         let uniform_bytes: &[u8] = bytemuck::cast_slice(&[uniforms]);
         assert_eq!(uniform_bytes.len(), std::mem::size_of::<Uniforms>());
+        
+        // 测试 UI 顶点
+        let ui_vertex = UIVertex {
+            position: [10.0, 20.0],
+            color: [1.0, 0.0, 0.0, 1.0],
+        };
+        let ui_bytes: &[u8] = bytemuck::cast_slice(&[ui_vertex]);
+        assert_eq!(ui_bytes.len(), std::mem::size_of::<UIVertex>());
+    }
+
+    #[test]
+    fn test_ui_uniforms_creation() {
+        let window_size = PhysicalSize::new(800, 600);
+        let ui_uniforms = UIUniforms::new(window_size);
+        
+        // 验证窗口尺寸
+        assert_eq!(ui_uniforms.window_size, [800.0, 600.0]);
+        assert_eq!(ui_uniforms.button_size, 20.0);
+        
+        // 验证按钮位置（右上角）
+        let expected_close_x = 800.0 - 20.0 - 5.0; // width - button_size - margin
+        let expected_close_y = 5.0; // margin
+        let expected_minimize_x = expected_close_x - 20.0 - 5.0; // close_x - button_size - margin
+        let expected_minimize_y = 5.0; // margin
+        
+        assert_eq!(ui_uniforms.close_button_pos, [expected_close_x, expected_close_y]);
+        assert_eq!(ui_uniforms.minimize_button_pos, [expected_minimize_x, expected_minimize_y]);
+    }
+
+    #[test]
+    fn test_button_hover_detection() {
+        // 由于无法创建真实的渲染引擎，我们测试按钮位置计算逻辑
+        let window_size = PhysicalSize::new(400, 300);
+        let ui_uniforms = UIUniforms::new(window_size);
+        let button_size = 20.0;
+        let radius = button_size / 2.0;
+        
+        // 关闭按钮中心位置
+        let close_center_x = ui_uniforms.close_button_pos[0] + button_size / 2.0;
+        let close_center_y = ui_uniforms.close_button_pos[1] + button_size / 2.0;
+        
+        // 测试点在按钮中心
+        let dx = 0.0;
+        let dy = 0.0;
+        let distance = (dx * dx + dy * dy).sqrt();
+        assert!(distance <= radius);
+        
+        // 测试点在按钮边缘
+        let dx = radius;
+        let dy = 0.0;
+        let distance = (dx * dx + dy * dy).sqrt();
+        assert!(distance <= radius);
+        
+        // 测试点在按钮外
+        let dx = radius + 1.0;
+        let dy = 0.0;
+        let distance = (dx * dx + dy * dy).sqrt();
+        assert!(distance > radius);
+    }
+
+    #[test]
+    fn test_ui_render_info_creation() {
+        let ui_info = UIRenderInfo {
+            show_controls: true,
+            window_size: PhysicalSize::new(640, 480),
+            close_button_hovered: false,
+            minimize_button_hovered: true,
+        };
+        
+        assert!(ui_info.show_controls);
+        assert_eq!(ui_info.window_size.width, 640);
+        assert_eq!(ui_info.window_size.height, 480);
+        assert!(!ui_info.close_button_hovered);
+        assert!(ui_info.minimize_button_hovered);
     }
 
     // 注意：由于 RenderEngine::new 需要 Window 实例且是异步的，
@@ -1146,3 +1828,7 @@ mod tests {
     // - 渲染管线配置的常量
     // - 着色器相关的数据结构
 }
+
+// Include UI integration tests
+#[cfg(test)]
+mod ui_integration_test;
