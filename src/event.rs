@@ -356,7 +356,8 @@ impl EventHandler {
                 if self.context_menu.is_point_inside(menu_position) {
                     if let Some(item_id) = self.context_menu.get_item_at_position(menu_position) {
                         // 执行菜单项
-                        if let Err(e) = self.handle_menu_item_click(item_id) {
+                        let item_id_owned = item_id.to_string();
+                        if let Err(e) = self.handle_menu_item_click(&item_id_owned) {
                             error!("执行菜单项失败: {}", e);
                         }
                         // 隐藏菜单

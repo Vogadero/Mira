@@ -2,11 +2,10 @@
 //
 // 负责渲染上下文菜单的视觉元素，包括背景、文本、图标、边框等
 
-use crate::ui::context_menu::{ContextMenu, MenuItem, MenuItemType, MenuLayout};
-use log::{debug, error, warn};
+use crate::ui::context_menu::{ContextMenu, MenuItemType, MenuLayout};
+use log::debug;
 use std::collections::HashMap;
 use wgpu::util::DeviceExt;
-use winit::dpi::PhysicalPosition;
 
 /// 菜单渲染器
 pub struct MenuRenderer {
@@ -499,8 +498,11 @@ impl MenuRenderer {
             }
         }
         
+        // 结束渲染通道以释放借用
+        drop(render_pass);
+        
         // 渲染文本
-        self.render_menu_text(&mut render_pass, menu)?;
+        self.render_menu_text(encoder, view, menu)?;
         
         debug!("菜单渲染完成");
         Ok(())
@@ -644,14 +646,17 @@ impl MenuRenderer {
                 usage: wgpu::BufferUsages::INDEX,
             });
             
+            let vertex_count = vertices.len() as u32;
+            let index_count = indices.len() as u32;
+            
             self.vertex_buffer = Some(vertex_buffer);
             self.index_buffer = Some(index_buffer);
             
             self.menu_geometry = Some(MenuGeometry {
                 vertices,
                 indices,
-                vertex_count: vertices.len() as u32,
-                index_count: indices.len() as u32,
+                vertex_count,
+                index_count,
             });
         }
         
@@ -669,12 +674,12 @@ impl MenuRenderer {
     }
     
     /// 渲染菜单文本
-    fn render_menu_text(&mut self, render_pass: &mut wgpu::RenderPass, menu: &ContextMenu) -> Result<(), String> {
-        if let (Some(text_pipeline), Some(bind_group), Some(font_atlas)) = 
+    fn render_menu_text(&mut self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView, menu: &ContextMenu) -> Result<(), String> {
+        // 生成文本顶点
+        self.generate_text_vertices(menu)?;
+        
+        if let (Some(text_pipeline), Some(bind_group), Some(_font_atlas)) = 
             (&self.text_pipeline, &self.uniform_bind_group, &self.font_atlas) {
-            
-            // 生成文本顶点
-            self.generate_text_vertices(menu)?;
             
             if !self.text_vertices.is_empty() {
                 // 创建文本顶点缓冲区
@@ -682,6 +687,22 @@ impl MenuRenderer {
                     label: Some("Text Vertex Buffer"),
                     contents: bytemuck::cast_slice(&self.text_vertices),
                     usage: wgpu::BufferUsages::VERTEX,
+                });
+                
+                // 创建新的渲染通道用于文本
+                let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("Text Render Pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Load,
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    occlusion_query_set: None,
+                    timestamp_writes: None,
                 });
                 
                 // 切换到文本渲染管线

@@ -556,18 +556,20 @@ impl ContextMenu {
     
     /// 处理单选项选择逻辑
     fn handle_radio_selection(&mut self, selected_item_id: &str) {
-        if let Some(selected_item) = self.items.get(selected_item_id) {
-            if let Some(group_id) = &selected_item.group_id {
-                // 取消同组其他项的选中状态
-                for item_id in &self.display_order {
-                    if let Some(item) = self.items.get_mut(item_id) {
-                        if item.group_id.as_ref() == Some(group_id) && item.item_type == MenuItemType::Radio {
-                            item.checked = item_id == selected_item_id;
-                        }
+        let group_id = self.items.get(selected_item_id)
+            .and_then(|item| item.group_id.clone());
+        
+        if let Some(group_id) = group_id {
+            // 取消同组其他项的选中状态
+            for item_id in &self.display_order {
+                if let Some(item) = self.items.get_mut(item_id) {
+                    if item.group_id.as_ref() == Some(&group_id) && item.item_type == MenuItemType::Radio {
+                        item.checked = item_id == selected_item_id;
                     }
                 }
-                debug!("单选组 {} 选择更新: {}", group_id, selected_item_id);
             }
+            debug!("单选组 {} 选择更新: {}", group_id, selected_item_id);
+        }
         }
     }
     
