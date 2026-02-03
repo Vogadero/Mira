@@ -10,6 +10,7 @@ mod memory;
 mod performance;
 mod render;
 mod shape;
+mod ui;
 mod window;
 
 use camera::CameraManager;
