@@ -632,6 +632,12 @@ async fn run_application() -> Result<(), Box<dyn std::error::Error>> {
                                 #[cfg(debug_assertions)]
                                 warn!("尝试继续运行，可能会影响性能");
                             }
+                            
+                            // 检查是否应该关闭
+                            if app.event_handler.should_close() {
+                                info!("应用请求关闭");
+                                event_loop.exit();
+                            }
                         }
                         _ => {
                             // 处理其他窗口事件

@@ -62,8 +62,8 @@ struct UIUniforms {
 
 impl UIUniforms {
     fn new(window_size: PhysicalSize<u32>) -> Self {
-        let button_size = 20.0;
-        let margin = 5.0;
+        let button_size = 30.0; // 增大按钮尺寸
+        let margin = 8.0; // 增大边距
         let window_width = window_size.width as f32;
         let window_height = window_size.height as f32;
         
@@ -875,7 +875,7 @@ impl RenderEngine {
         }
         
         // 创建按钮几何体
-        let button_size = 20.0;
+        let button_size = 30.0; // 与UIUniforms保持一致
         
         // 根据悬浮状态调整按钮颜色
         let close_color = if ui_info.close_button_hovered {
@@ -1325,7 +1325,7 @@ impl RenderEngine {
     /// 检查点是否在按钮内（用于悬浮检测）
     pub fn is_point_in_button(&self, x: f32, y: f32, button_type: &str, window_size: PhysicalSize<u32>) -> bool {
         let ui_uniforms = UIUniforms::new(window_size);
-        let button_size = 20.0;
+        let button_size = 30.0; // 与UIUniforms保持一致
         let radius = button_size / 2.0;
         
         let (button_x, button_y) = match button_type {

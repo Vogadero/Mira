@@ -37,6 +37,9 @@ pub struct EventHandler {
     // 上下文菜单
     context_menu: ContextMenu,
     menu_renderer: Option<MenuRenderer>,
+    
+    // 应用状态
+    should_close: bool,
 }
 
 impl EventHandler {
@@ -70,6 +73,9 @@ impl EventHandler {
             // 上下文菜单初始化
             context_menu: ContextMenu::new(PhysicalSize::new(1920, 1080)), // 默认屏幕尺寸，会在运行时更新
             menu_renderer: None, // 延迟初始化
+            
+            // 应用状态初始化
+            should_close: false,
         };
         
         // 设置菜单回调函数
@@ -202,6 +208,16 @@ impl EventHandler {
     /// 获取配置管理器可变引用
     pub fn config_manager_mut(&mut self) -> &mut ConfigManager {
         &mut self.config_manager
+    }
+    
+    /// 检查应用是否应该关闭
+    pub fn should_close(&self) -> bool {
+        self.should_close
+    }
+    
+    /// 检查上下文菜单是否可见
+    pub fn is_context_menu_visible(&self) -> bool {
+        self.context_menu.state() != &MenuState::Hidden
     }
     
     /// 显示右键上下文菜单
@@ -394,8 +410,8 @@ impl EventHandler {
                         info!("用户点击关闭按钮，准备退出应用");
                         // 保存配置并清理资源
                         self.handle_close_requested();
-                        // 注意：这里需要通知主循环退出，但我们无法直接做到
-                        // 在实际应用中，需要通过事件系统或状态管理来处理
+                        // 设置关闭标志
+                        self.should_close = true;
                         return;
                     }
                     
@@ -750,6 +766,11 @@ impl EventHandler {
     
     /// 渲染一帧
     pub fn render_frame(&mut self) -> Result<(), String> {
+        // 如果应该关闭，直接返回
+        if self.should_close {
+            return Ok(());
+        }
+        
         // 从摄像头捕获帧
         let frame = match self.camera_manager.capture_frame() {
             Ok(frame) => frame,
