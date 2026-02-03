@@ -570,7 +570,6 @@ impl ContextMenu {
             }
             debug!("单选组 {} 选择更新: {}", group_id, selected_item_id);
         }
-        }
     }
     
     /// 更新摄像头设备列表
