@@ -30,6 +30,7 @@ pub struct EventHandler {
     // UI 控制状态
     is_hovering: bool,
     hover_start_time: std::time::Instant,
+    last_mouse_move_time: std::time::Instant,
     show_controls: bool,
     close_button_hovered: bool,
     minimize_button_hovered: bool,
@@ -66,6 +67,7 @@ impl EventHandler {
             // UI 控制状态初始化
             is_hovering: false,
             hover_start_time: std::time::Instant::now(),
+            last_mouse_move_time: std::time::Instant::now(),
             show_controls: false,
             close_button_hovered: false,
             minimize_button_hovered: false,
@@ -124,6 +126,9 @@ impl EventHandler {
                     }
                     (ElementState::Released, MouseButton::Left) => {
                         self.handle_mouse_release(*button);
+                    }
+                    (ElementState::Pressed, MouseButton::Right) => {
+                        self.handle_mouse_press(*button, self.last_cursor_pos);
                     }
                     _ => {}
                 }
@@ -432,11 +437,6 @@ impl EventHandler {
             MouseButton::Right => {
                 // 右键显示上下文菜单
                 info!("右键点击 - 显示上下文菜单");
-                info!("提示：菜单渲染功能正在开发中，请使用以下快捷键：");
-                info!("  F1-F5: 切换形状 (圆形/椭圆/矩形/圆角矩形/心形)");
-                info!("  Tab: 切换摄像头设备");
-                info!("  Space: 循环切换形状");
-                info!("  R: 重置窗口位置和旋转");
                 self.show_context_menu(position);
             }
             _ => {
@@ -464,6 +464,7 @@ impl EventHandler {
     /// 处理鼠标移动事件（更新拖拽位置和悬浮状态）
     fn handle_mouse_move(&mut self, position: PhysicalPosition<f64>) {
         self.last_cursor_pos = position;
+        self.last_mouse_move_time = std::time::Instant::now();
         
         // 检查是否在上下文菜单内
         let menu_position = PhysicalPosition::new(position.x as f32, position.y as f32);
@@ -503,6 +504,16 @@ impl EventHandler {
             
             // 检查是否悬浮在按钮上
             self.update_button_hover_states(position);
+        } else if self.show_controls {
+            // 如果按钮已显示，检查是否应该隐藏（鼠标静止超过2秒）
+            if self.last_mouse_move_time.elapsed().as_millis() > 2000 {
+                self.show_controls = false;
+                self.close_button_hovered = false;
+                self.minimize_button_hovered = false;
+            } else {
+                // 继续更新按钮悬浮状态
+                self.update_button_hover_states(position);
+            }
         } else {
             // 如果控制按钮未显示，重置悬浮状态
             self.close_button_hovered = false;
@@ -624,6 +635,13 @@ impl EventHandler {
                 Key::Character(c) if c == "r" || c == "R" => {
                     // R: 重置窗口位置和旋转
                     self.reset_window();
+                }
+                Key::Named(NamedKey::Escape) => {
+                    // ESC: 关闭上下文菜单
+                    if self.is_context_menu_visible() {
+                        self.hide_context_menu();
+                        info!("上下文菜单已关闭");
+                    }
                 }
                 _ => {
                     debug!("未处理的键盘输入: {:?}", event.logical_key);
@@ -847,7 +865,50 @@ impl EventHandler {
             info!("渲染引擎恢复成功");
         }
         
+        // 如果上下文菜单可见，渲染菜单（简单文本版本）
+        if self.is_context_menu_visible() {
+            self.render_simple_context_menu()?;
+        }
+        
         debug!("成功渲染一帧，帧尺寸: {}x{}", frame.width, frame.height);
+        Ok(())
+    }
+    
+    /// 渲染简单的上下文菜单（文本版本）
+    fn render_simple_context_menu(&mut self) -> Result<(), String> {
+        // 获取菜单项
+        let menu_items = self.context_menu.get_display_items();
+        let menu_layout = self.context_menu.layout();
+        
+        println!("\n╔══════════════════════════════════════╗");
+        println!("║            右键上下文菜单            ║");
+        println!("╠══════════════════════════════════════╣");
+        
+        // 形状选择部分
+        println!("║ 形状选择：                           ║");
+        let shapes = [
+            ("F1", "圆形", "shape_circle"),
+            ("F2", "椭圆形", "shape_ellipse"), 
+            ("F3", "矩形", "shape_rectangle"),
+            ("F4", "圆角矩形", "shape_rounded_rectangle"),
+            ("F5", "心形", "shape_heart"),
+        ];
+        
+        for (key, name, id) in &shapes {
+            let is_selected = menu_items.iter().any(|item| item.id == *id && item.checked);
+            let marker = if is_selected { "●" } else { "○" };
+            println!("║ {} {} {}                           ║", key, marker, name);
+        }
+        
+        println!("╠══════════════════════════════════════╣");
+        println!("║ 其他操作：                           ║");
+        println!("║ Tab  切换摄像头设备                  ║");
+        println!("║ Space 循环切换形状                   ║");
+        println!("║ R    重置窗口位置和旋转              ║");
+        println!("╠══════════════════════════════════════╣");
+        println!("║ 点击其他区域或按ESC关闭菜单         ║");
+        println!("╚══════════════════════════════════════╝\n");
+        
         Ok(())
     }
 }

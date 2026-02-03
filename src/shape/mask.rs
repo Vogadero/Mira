@@ -119,9 +119,9 @@ impl ShapeMask {
     fn generate_ellipse(&mut self) {
         let center_x = self.width as f32 / 2.0;
         let center_y = self.height as f32 / 2.0;
-        // 椭圆形使用完整的窗口宽高比，确保明显不同于圆形
+        // 椭圆形使用更夸张的宽高比，让它更明显椭圆
         let radius_x = self.width as f32 / 2.0;
-        let radius_y = self.height as f32 / 2.0;
+        let radius_y = self.height as f32 / 3.0; // 减小Y轴半径，让椭圆更扁
         
         self.mask_data = vec![0u8; (self.width * self.height) as usize];
         
@@ -363,8 +363,8 @@ impl ShapeMask {
     fn generate_heart(&mut self) {
         let center_x = self.width as f32 / 2.0;
         let center_y = self.height as f32 / 2.0;
-        // 进一步增加心形大小，从 /8.0 改为 /5.0，确保占据至少60%的窗口面积
-        let scale = (self.width.min(self.height) as f32) / 5.0;
+        // 进一步增加心形大小，从 /5.0 改为 /4.0，让心形更大
+        let scale = (self.width.min(self.height) as f32) / 4.0;
         
         self.mask_data = vec![0u8; (self.width * self.height) as usize];
         
