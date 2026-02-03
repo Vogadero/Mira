@@ -102,7 +102,6 @@ impl EventHandler {
             }
         }
     }
-    }
     
     /// 处理窗口事件
     pub fn handle_window_event(&mut self, event: &WindowEvent) -> bool {
