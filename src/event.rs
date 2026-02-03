@@ -231,6 +231,7 @@ impl EventHandler {
         let menu_position = PhysicalPosition::new(position.x as f32, position.y as f32);
         self.context_menu.show(menu_position);
         
+        info!("上下文菜单已显示，菜单项数量: {}", self.context_menu.get_display_items().len());
         debug!("上下文菜单已显示");
     }
     
@@ -392,8 +393,8 @@ impl EventHandler {
                 // 检查是否点击了控制按钮
                 if self.show_controls {
                     let window_size = self.window_manager.size();
-                    let button_size = 20.0;
-                    let margin = 5.0;
+                    let button_size = 30.0; // 与UIUniforms保持一致
+                    let margin = 8.0; // 与UIUniforms保持一致
                     
                     // 关闭按钮位置（右上角）
                     let close_x = window_size.width as f64 - button_size - margin;
@@ -430,7 +431,12 @@ impl EventHandler {
             }
             MouseButton::Right => {
                 // 右键显示上下文菜单
-                info!("显示右键菜单");
+                info!("右键点击 - 显示上下文菜单");
+                info!("提示：菜单渲染功能正在开发中，请使用以下快捷键：");
+                info!("  F1-F5: 切换形状 (圆形/椭圆/矩形/圆角矩形/心形)");
+                info!("  Tab: 切换摄像头设备");
+                info!("  Space: 循环切换形状");
+                info!("  R: 重置窗口位置和旋转");
                 self.show_context_menu(position);
             }
             _ => {
