@@ -355,9 +355,13 @@ impl EventHandler {
                 // 首先检查是否点击了上下文菜单
                 let menu_position = PhysicalPosition::new(position.x as f32, position.y as f32);
                 if self.context_menu.is_point_inside(menu_position) {
-                    if let Some(item_id) = self.context_menu.get_item_at_position(menu_position) {
+                    // 先获取item_id并复制，避免借用冲突
+                    let item_id_opt = self.context_menu.get_item_at_position(menu_position)
+                        .map(|id| id.to_string());
+                    
+                    if let Some(item_id) = item_id_opt {
                         // 执行菜单项
-                        if let Err(e) = self.handle_menu_item_click(item_id) {
+                        if let Err(e) = self.handle_menu_item_click(&item_id) {
                             error!("执行菜单项失败: {}", e);
                         }
                         // 隐藏菜单
