@@ -2,7 +2,7 @@
 //
 // 提供系统托盘图标和右键菜单功能
 
-use log::{debug, error, info};
+use log::{debug, info};
 use tray_icon::{
     menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu},
     TrayIcon, TrayIconBuilder,

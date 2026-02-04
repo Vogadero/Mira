@@ -307,35 +307,40 @@ impl MiraApp {
                 match action {
                     TrayMenuAction::ShapeCircle => {
                         self.event_handler.shape_mask_mut().set_shape(ShapeType::Circle);
-                        if let Err(e) = self.event_handler.render_engine_mut().set_mask(self.event_handler.shape_mask()) {
+                        let mask = self.event_handler.shape_mask().clone();
+                        if let Err(e) = self.event_handler.render_engine_mut().set_mask(&mask) {
                             error!("设置遮罩失败: {}", e);
                         }
                         info!("切换到圆形");
                     }
                     TrayMenuAction::ShapeEllipse => {
                         self.event_handler.shape_mask_mut().set_shape(ShapeType::Ellipse);
-                        if let Err(e) = self.event_handler.render_engine_mut().set_mask(self.event_handler.shape_mask()) {
+                        let mask = self.event_handler.shape_mask().clone();
+                        if let Err(e) = self.event_handler.render_engine_mut().set_mask(&mask) {
                             error!("设置遮罩失败: {}", e);
                         }
                         info!("切换到椭圆形");
                     }
                     TrayMenuAction::ShapeRectangle => {
                         self.event_handler.shape_mask_mut().set_shape(ShapeType::Rectangle);
-                        if let Err(e) = self.event_handler.render_engine_mut().set_mask(self.event_handler.shape_mask()) {
+                        let mask = self.event_handler.shape_mask().clone();
+                        if let Err(e) = self.event_handler.render_engine_mut().set_mask(&mask) {
                             error!("设置遮罩失败: {}", e);
                         }
                         info!("切换到矩形");
                     }
                     TrayMenuAction::ShapeRoundedRectangle => {
                         self.event_handler.shape_mask_mut().set_shape(ShapeType::RoundedRectangle { radius: 20.0 });
-                        if let Err(e) = self.event_handler.render_engine_mut().set_mask(self.event_handler.shape_mask()) {
+                        let mask = self.event_handler.shape_mask().clone();
+                        if let Err(e) = self.event_handler.render_engine_mut().set_mask(&mask) {
                             error!("设置遮罩失败: {}", e);
                         }
                         info!("切换到圆角矩形");
                     }
                     TrayMenuAction::ShapeHeart => {
                         self.event_handler.shape_mask_mut().set_shape(ShapeType::Heart);
-                        if let Err(e) = self.event_handler.render_engine_mut().set_mask(self.event_handler.shape_mask()) {
+                        let mask = self.event_handler.shape_mask().clone();
+                        if let Err(e) = self.event_handler.render_engine_mut().set_mask(&mask) {
                             error!("设置遮罩失败: {}", e);
                         }
                         info!("切换到心形");
