@@ -167,7 +167,7 @@ impl MiraApp {
 
         // 4. 初始化渲染引擎
         info!("初始化渲染引擎...");
-        let render_engine = RenderEngine::new(window_manager.window()).await
+        let mut render_engine = RenderEngine::new(window_manager.window()).await
             .map_err(|e| {
                 let error_msg = format!("渲染引擎创建失败: {}", e);
                 error!("{}", error_msg);
@@ -196,13 +196,26 @@ impl MiraApp {
 
         // 6. 创建事件处理器
         info!("创建事件处理器...");
-        let event_handler = EventHandler::new(
+        let mut event_handler = EventHandler::new(
             window_manager,
             camera_manager,
             render_engine,
             shape_mask,
             config_manager,
         );
+
+        // 7. 初始化菜单渲染器
+        info!("初始化菜单渲染器...");
+        let render_engine_ref = event_handler.render_engine();
+        let device = render_engine_ref.device();
+        let queue = render_engine_ref.queue();
+        let surface_format = render_engine_ref.surface_format();
+        
+        if let Err(e) = event_handler.init_menu_renderer(device, queue, surface_format) {
+            warn!("菜单渲染器初始化失败: {}，将使用简单文本菜单", e);
+        } else {
+            info!("菜单渲染器初始化成功");
+        }
 
         let initialization_time = start_time.elapsed();
         info!("Mira 应用程序初始化完成，耗时: {:.2}秒", initialization_time.as_secs_f32());

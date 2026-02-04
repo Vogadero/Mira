@@ -96,10 +96,10 @@ impl EventHandler {
     }
     
     /// 初始化菜单渲染器
-    pub fn init_menu_renderer(&mut self, device: wgpu::Device, queue: wgpu::Queue, surface_format: wgpu::TextureFormat) -> Result<(), String> {
+    pub fn init_menu_renderer(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, surface_format: wgpu::TextureFormat) -> Result<(), String> {
         debug!("初始化菜单渲染器");
         
-        match MenuRenderer::new(device, queue, surface_format) {
+        match MenuRenderer::new(device.clone(), queue.clone(), surface_format) {
             Ok(renderer) => {
                 self.menu_renderer = Some(renderer);
                 info!("菜单渲染器初始化成功");
@@ -843,34 +843,65 @@ impl EventHandler {
         
         // 调用渲染引擎渲染当前帧
         let rotation_radians = self.window_manager.rotation().to_radians();
-        if let Err(e) = self.render_engine.render_with_ui(rotation_radians, &ui_info) {
-            error!("渲染帧失败: {}", e);
-            
-            // 尝试恢复渲染引擎
-            warn!("尝试恢复渲染引擎");
-            let window_size = self.window_manager.size();
-            self.render_engine.resize(window_size.width, window_size.height);
-            
-            // 重新设置遮罩
-            if let Err(mask_err) = self.render_engine.set_mask(&self.shape_mask) {
-                error!("重新设置遮罩失败: {}", mask_err);
-            }
-            
-            // 再次尝试渲染
-            if let Err(retry_err) = self.render_engine.render_with_ui(rotation_radians, &ui_info) {
-                error!("渲染恢复失败: {}", retry_err);
-                return Err(format!("渲染失败且无法恢复: {}", e));
-            }
-            
-            info!("渲染引擎恢复成功");
-        }
         
-        // 如果上下文菜单可见，渲染菜单（简单文本版本）
+        // 如果上下文菜单可见，使用特殊的渲染路径
         if self.is_context_menu_visible() {
-            self.render_simple_context_menu()?;
+            if let Err(e) = self.render_frame_with_context_menu(rotation_radians, &ui_info) {
+                error!("带菜单的帧渲染失败: {}", e);
+                return Err(format!("带菜单的帧渲染失败: {}", e));
+            }
+        } else {
+            // 正常渲染路径
+            if let Err(e) = self.render_engine.render_with_ui(rotation_radians, &ui_info) {
+                error!("渲染帧失败: {}", e);
+                
+                // 尝试恢复渲染引擎
+                warn!("尝试恢复渲染引擎");
+                let window_size = self.window_manager.size();
+                self.render_engine.resize(window_size.width, window_size.height);
+                
+                // 重新设置遮罩
+                if let Err(mask_err) = self.render_engine.set_mask(&self.shape_mask) {
+                    error!("重新设置遮罩失败: {}", mask_err);
+                }
+                
+                // 再次尝试渲染
+                if let Err(retry_err) = self.render_engine.render_with_ui(rotation_radians, &ui_info) {
+                    error!("渲染恢复失败: {}", retry_err);
+                    return Err(format!("渲染失败且无法恢复: {}", e));
+                }
+                
+                info!("渲染引擎恢复成功");
+            }
         }
         
         debug!("成功渲染一帧，帧尺寸: {}x{}", frame.width, frame.height);
+        Ok(())
+    }
+    
+    /// 渲染带上下文菜单的帧
+    fn render_frame_with_context_menu(&mut self, rotation: f32, ui_info: &crate::render::engine::UIRenderInfo) -> Result<(), String> {
+        debug!("渲染带上下文菜单的帧");
+        
+        // 首先渲染主视频内容和UI控件
+        if let Err(e) = self.render_engine.render_with_ui(rotation, ui_info) {
+            return Err(format!("主内容渲染失败: {}", e));
+        }
+        
+        // 然后在上面渲染上下文菜单
+        if let Some(menu_renderer) = &mut self.menu_renderer {
+            let window_size = self.window_manager.size();
+            let screen_size = [window_size.width as f32, window_size.height as f32];
+            
+            if let Err(e) = self.render_engine.render_context_menu(menu_renderer, &self.context_menu, screen_size) {
+                warn!("上下文菜单渲染失败，回退到简单文本菜单: {}", e);
+                self.render_simple_context_menu()?;
+            }
+        } else {
+            // 如果菜单渲染器未初始化，使用简单文本菜单
+            self.render_simple_context_menu()?;
+        }
+        
         Ok(())
     }
     

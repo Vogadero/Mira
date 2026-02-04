@@ -121,7 +121,7 @@ impl ShapeMask {
         let center_y = self.height as f32 / 2.0;
         // 椭圆形使用更夸张的宽高比，让它更明显椭圆
         let radius_x = self.width as f32 / 2.0;
-        let radius_y = self.height as f32 / 3.0; // 减小Y轴半径，让椭圆更扁
+        let radius_y = self.height as f32 / 2.5; // 减小Y轴半径，让椭圆更扁
         
         self.mask_data = vec![0u8; (self.width * self.height) as usize];
         
@@ -363,8 +363,8 @@ impl ShapeMask {
     fn generate_heart(&mut self) {
         let center_x = self.width as f32 / 2.0;
         let center_y = self.height as f32 / 2.0;
-        // 进一步增加心形大小，从 /5.0 改为 /4.0，让心形更大
-        let scale = (self.width.min(self.height) as f32) / 4.0;
+        // 进一步增加心形大小，从 /5.0 改为 /2.0，让心形更大
+        let scale = (self.width.min(self.height) as f32) / 2.0;
         
         self.mask_data = vec![0u8; (self.width * self.height) as usize];
         

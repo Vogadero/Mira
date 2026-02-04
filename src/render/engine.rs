@@ -849,6 +849,30 @@ impl RenderEngine {
 
         Ok(())
     }
+    
+    /// 渲染上下文菜单（集成到现有渲染管线）
+    pub fn render_context_menu_integrated(
+        &mut self,
+        menu_renderer: &mut crate::ui::MenuRenderer,
+        context_menu: &crate::ui::ContextMenu,
+        screen_size: [f32; 2],
+        encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+    ) -> Result<(), RenderError> {
+        debug!("渲染上下文菜单（集成模式）");
+        
+        // 渲染菜单（在现有内容之上）
+        match menu_renderer.render_menu(encoder, view, context_menu, screen_size) {
+            Ok(()) => {
+                debug!("上下文菜单渲染成功");
+                Ok(())
+            }
+            Err(e) => {
+                error!("上下文菜单渲染失败: {}", e);
+                Err(RenderError::UIRenderFailed(format!("上下文菜单渲染失败: {}", e)))
+            }
+        }
+    }
 
     /// 渲染UI控件（关闭和最小化按钮）
     fn render_ui_controls(
@@ -1421,6 +1445,49 @@ impl RenderEngine {
         }
     }
     
+    /// 渲染上下文菜单
+    pub fn render_context_menu(
+        &mut self,
+        menu_renderer: &mut crate::ui::MenuRenderer,
+        context_menu: &crate::ui::ContextMenu,
+        screen_size: [f32; 2],
+    ) -> Result<(), RenderError> {
+        debug!("开始渲染上下文菜单");
+        
+        // 获取表面纹理
+        let output = self.surface.get_current_texture()
+            .map_err(|e| {
+                error!("获取表面纹理失败: {}", e);
+                RenderError::RenderFailed(format!("获取表面纹理失败: {}", e))
+            })?;
+        
+        let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        
+        // 创建命令编码器
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Context Menu Render Encoder"),
+        });
+        
+        // 渲染菜单（在现有内容之上）
+        match menu_renderer.render_menu(&mut encoder, &view, context_menu, screen_size) {
+            Ok(()) => {
+                debug!("上下文菜单渲染成功");
+                
+                // 提交命令
+                self.queue.submit(std::iter::once(encoder.finish()));
+                
+                // 呈现到屏幕
+                output.present();
+                
+                Ok(())
+            }
+            Err(e) => {
+                error!("上下文菜单渲染失败: {}", e);
+                Err(RenderError::UIRenderFailed(format!("上下文菜单渲染失败: {}", e)))
+            }
+        }
+    }
+    
     /// 清理未使用的 GPU 资源
     pub fn cleanup_resources(&mut self) {
         debug!("开始清理 GPU 资源");
@@ -1445,6 +1512,21 @@ impl RenderEngine {
             video_texture_allocated: self.video_texture.is_some(),
             mask_texture_allocated: self.mask_texture.is_some(),
         }
+    }
+    
+    /// 获取设备引用
+    pub fn device(&self) -> &wgpu::Device {
+        &self.device
+    }
+    
+    /// 获取队列引用
+    pub fn queue(&self) -> &wgpu::Queue {
+        &self.queue
+    }
+    
+    /// 获取表面格式
+    pub fn surface_format(&self) -> wgpu::TextureFormat {
+        self.surface_config.format
     }
     
     /// 强制释放所有缓存的纹理
