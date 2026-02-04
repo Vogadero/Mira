@@ -206,10 +206,15 @@ impl MiraApp {
 
         // 7. 初始化菜单渲染器
         info!("初始化菜单渲染器...");
-        // 获取渲染引擎的设备信息
-        let device = event_handler.render_engine().device();
-        let queue = event_handler.render_engine().queue();
-        let surface_format = event_handler.render_engine().surface_format();
+        // 获取渲染引擎的设备信息（在一个作用域内完成所有不可变借用）
+        let (device, queue, surface_format) = {
+            let render_engine_ref = event_handler.render_engine();
+            (
+                render_engine_ref.device(),
+                render_engine_ref.queue(),
+                render_engine_ref.surface_format(),
+            )
+        };
         
         // 尝试初始化菜单渲染器，如果失败则使用简单文本菜单
         if let Err(e) = event_handler.init_menu_renderer(device, queue, surface_format) {
