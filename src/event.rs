@@ -99,15 +99,16 @@ impl EventHandler {
     pub fn init_menu_renderer(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, surface_format: wgpu::TextureFormat) -> Result<(), String> {
         debug!("初始化菜单渲染器");
         
-        match MenuRenderer::new(device.clone(), queue.clone(), surface_format) {
+        match MenuRenderer::new(device, queue, surface_format) {
             Ok(renderer) => {
                 self.menu_renderer = Some(renderer);
                 info!("菜单渲染器初始化成功");
                 Ok(())
             }
             Err(e) => {
-                error!("菜单渲染器初始化失败: {}", e);
-                Err(e)
+                warn!("菜单渲染器初始化失败: {}，将使用简单文本菜单", e);
+                // 不返回错误，让应用继续使用简单文本菜单
+                Ok(())
             }
         }
     }
@@ -888,17 +889,18 @@ impl EventHandler {
             return Err(format!("主内容渲染失败: {}", e));
         }
         
-        // 然后在上面渲染上下文菜单
-        if let Some(menu_renderer) = &mut self.menu_renderer {
+        // 然后渲染上下文菜单（目前使用简单文本菜单）
+        if self.menu_renderer.is_some() {
+            // 如果有菜单渲染器，尝试使用视觉菜单
             let window_size = self.window_manager.size();
             let screen_size = [window_size.width as f32, window_size.height as f32];
             
-            if let Err(e) = self.render_engine.render_context_menu(menu_renderer, &self.context_menu, screen_size) {
-                warn!("上下文菜单渲染失败，回退到简单文本菜单: {}", e);
+            if let Err(e) = self.render_engine.render_context_menu(self.menu_renderer.as_mut().unwrap(), &self.context_menu, screen_size) {
+                warn!("视觉菜单渲染失败，回退到简单文本菜单: {}", e);
                 self.render_simple_context_menu()?;
             }
         } else {
-            // 如果菜单渲染器未初始化，使用简单文本菜单
+            // 使用简单文本菜单
             self.render_simple_context_menu()?;
         }
         
@@ -909,7 +911,7 @@ impl EventHandler {
     fn render_simple_context_menu(&mut self) -> Result<(), String> {
         // 获取菜单项
         let menu_items = self.context_menu.get_display_items();
-        let menu_layout = self.context_menu.layout();
+        let _menu_layout = self.context_menu.layout(); // 添加下划线前缀避免未使用警告
         
         println!("\n╔══════════════════════════════════════╗");
         println!("║            右键上下文菜单            ║");

@@ -211,6 +211,7 @@ impl MiraApp {
         let queue = render_engine_ref.queue();
         let surface_format = render_engine_ref.surface_format();
         
+        // 尝试初始化菜单渲染器，如果失败则使用简单文本菜单
         if let Err(e) = event_handler.init_menu_renderer(device, queue, surface_format) {
             warn!("菜单渲染器初始化失败: {}，将使用简单文本菜单", e);
         } else {

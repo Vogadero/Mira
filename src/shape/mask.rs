@@ -287,7 +287,7 @@ impl ShapeMask {
         // 生成高斯核
         let mut sum = 0.0;
         for i in 0..kernel_size {
-            let x = (i as f32 - center as f32);
+            let x = i as f32 - center as f32;
             let value = (-x * x / sigma2).exp();
             kernel[i] = value;
             sum += value;
