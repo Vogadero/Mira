@@ -18,7 +18,7 @@ use config::ConfigManager;
 use event::EventHandler;
 use logging::LoggingConfig;
 use memory::MemoryMonitor;
-use performance::{PerformanceMonitor, PerformanceThresholds, AlertSeverity};
+use performance::{PerformanceMonitor, PerformanceThresholds};
 use render::RenderEngine;
 use shape::{ShapeMask, ShapeType};
 use window::WindowManager;
@@ -167,7 +167,7 @@ impl MiraApp {
 
         // 4. 初始化渲染引擎
         info!("初始化渲染引擎...");
-        let mut render_engine = RenderEngine::new(window_manager.window()).await
+        let render_engine = RenderEngine::new(window_manager.window()).await
             .map_err(|e| {
                 let error_msg = format!("渲染引擎创建失败: {}", e);
                 error!("{}", error_msg);
@@ -206,10 +206,10 @@ impl MiraApp {
 
         // 7. 初始化菜单渲染器
         info!("初始化菜单渲染器...");
-        let render_engine_ref = event_handler.render_engine();
-        let device = render_engine_ref.device();
-        let queue = render_engine_ref.queue();
-        let surface_format = render_engine_ref.surface_format();
+        // 获取渲染引擎的设备信息
+        let device = event_handler.render_engine().device();
+        let queue = event_handler.render_engine().queue();
+        let surface_format = event_handler.render_engine().surface_format();
         
         // 尝试初始化菜单渲染器，如果失败则使用简单文本菜单
         if let Err(e) = event_handler.init_menu_renderer(device, queue, surface_format) {
@@ -294,7 +294,7 @@ impl MiraApp {
 
     /// 渲染一帧
     fn render_frame(&mut self) -> Result<(), String> {
-        let frame_start = Instant::now();
+        let _frame_start = Instant::now();
         let now = Instant::now();
         let frame_time = now.duration_since(self.last_frame_time);
         
@@ -449,7 +449,6 @@ fn get_memory_usage_mb() -> f32 {
     #[cfg(target_os = "windows")]
     {
         use std::mem;
-        use std::ptr;
         
         #[repr(C)]
         struct ProcessMemoryCounters {
@@ -639,9 +638,9 @@ async fn run_application() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         WindowEvent::RedrawRequested => {
                             // 渲染一帧
-                            if let Err(e) = app.render_frame() {
+                            if let Err(_e) = app.render_frame() {
                                 #[cfg(debug_assertions)]
-                                error!("渲染帧失败: {}", e);
+                                error!("渲染帧失败: {}", _e);
                                 // 记录错误但不退出应用，尝试恢复
                                 #[cfg(debug_assertions)]
                                 warn!("尝试继续运行，可能会影响性能");

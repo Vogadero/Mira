@@ -119,7 +119,7 @@ struct CharInfo {
 
 impl MenuRenderer {
     /// 创建菜单渲染器
-    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, surface_format: wgpu::TextureFormat) -> Result<Self, String> {
+    pub fn new(_device: &wgpu::Device, _queue: &wgpu::Queue, _surface_format: wgpu::TextureFormat) -> Result<Self, String> {
         debug!("创建菜单渲染器");
         
         // 由于我们需要存储 device 和 queue 的引用，但它们的生命周期管理比较复杂
