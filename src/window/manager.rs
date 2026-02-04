@@ -448,6 +448,13 @@ impl WindowManager {
         info!("窗口已最小化");
     }
     
+    /// 关闭窗口（请求关闭）
+    pub fn close(&self) {
+        // winit 不直接提供关闭窗口的方法
+        // 我们通过设置一个标志来通知应用程序退出
+        info!("请求关闭窗口");
+    }
+    
     /// 获取拖拽偏移量（用于测试）
     pub fn drag_offset(&self) -> PhysicalPosition<f64> {
         self.drag_offset

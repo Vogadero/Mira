@@ -909,39 +909,8 @@ impl EventHandler {
     
     /// 渲染简单的上下文菜单（文本版本）
     fn render_simple_context_menu(&mut self) -> Result<(), String> {
-        // 获取菜单项
-        let menu_items = self.context_menu.get_display_items();
-        let _menu_layout = self.context_menu.layout(); // 添加下划线前缀避免未使用警告
-        
-        println!("\n╔══════════════════════════════════════╗");
-        println!("║            右键上下文菜单            ║");
-        println!("╠══════════════════════════════════════╣");
-        
-        // 形状选择部分
-        println!("║ 形状选择：                           ║");
-        let shapes = [
-            ("F1", "圆形", "shape_circle"),
-            ("F2", "椭圆形", "shape_ellipse"), 
-            ("F3", "矩形", "shape_rectangle"),
-            ("F4", "圆角矩形", "shape_rounded_rectangle"),
-            ("F5", "心形", "shape_heart"),
-        ];
-        
-        for (key, name, id) in &shapes {
-            let is_selected = menu_items.iter().any(|item| item.id == *id && item.checked);
-            let marker = if is_selected { "●" } else { "○" };
-            println!("║ {} {} {}                           ║", key, marker, name);
-        }
-        
-        println!("╠══════════════════════════════════════╣");
-        println!("║ 其他操作：                           ║");
-        println!("║ Tab  切换摄像头设备                  ║");
-        println!("║ Space 循环切换形状                   ║");
-        println!("║ R    重置窗口位置和旋转              ║");
-        println!("╠══════════════════════════════════════╣");
-        println!("║ 点击其他区域或按ESC关闭菜单         ║");
-        println!("╚══════════════════════════════════════╝\n");
-        
+        // 不再在控制台显示菜单，改为使用系统托盘菜单
+        // 菜单功能已通过系统托盘图标的右键菜单提供
         Ok(())
     }
 }

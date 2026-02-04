@@ -9,6 +9,7 @@ pub mod memory;
 pub mod performance;
 pub mod render;
 pub mod shape;
+pub mod tray;
 pub mod ui;
 pub mod window;
 

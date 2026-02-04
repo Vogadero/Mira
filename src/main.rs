@@ -10,6 +10,7 @@ mod memory;
 mod performance;
 mod render;
 mod shape;
+mod tray;
 mod ui;
 mod window;
 
@@ -21,6 +22,7 @@ use memory::MemoryMonitor;
 use performance::{PerformanceMonitor, PerformanceThresholds};
 use render::RenderEngine;
 use shape::{ShapeMask, ShapeType};
+use tray::{TrayManager, TrayMenuAction};
 use window::WindowManager;
 
 use log::{debug, error, info, warn};
@@ -34,6 +36,7 @@ use winit::{
 /// 应用程序主结构
 struct MiraApp {
     event_handler: EventHandler,
+    tray_manager: Option<TrayManager>,
     last_frame_time: Instant,
     target_frame_duration: Duration,
     
@@ -239,8 +242,21 @@ impl MiraApp {
         
         info!("性能监控系统初始化完成");
 
+        // 初始化系统托盘图标
+        let tray_manager = match TrayManager::new() {
+            Ok(tray) => {
+                info!("系统托盘图标初始化成功");
+                Some(tray)
+            }
+            Err(e) => {
+                warn!("系统托盘图标初始化失败: {}，将不显示托盘图标", e);
+                None
+            }
+        };
+
         Ok(Self {
             event_handler,
+            tray_manager,
             last_frame_time: Instant::now(),
             target_frame_duration: Duration::from_millis(50), // 20 FPS（降低以减少渲染开销，优先拖拽流畅度）
             
@@ -278,6 +294,85 @@ impl MiraApp {
                     _ => {}
                 }
                 should_exit
+            }
+        }
+    }
+    
+    /// 处理托盘菜单事件
+    fn handle_tray_events(&mut self) {
+        if let Some(tray_manager) = &self.tray_manager {
+            if let Some(action) = tray_manager.handle_menu_event() {
+                info!("处理托盘菜单动作: {:?}", action);
+                
+                match action {
+                    TrayMenuAction::ShapeCircle => {
+                        self.event_handler.shape_mask_mut().set_shape(ShapeType::Circle);
+                        if let Err(e) = self.event_handler.render_engine_mut().set_mask(self.event_handler.shape_mask()) {
+                            error!("设置遮罩失败: {}", e);
+                        }
+                        info!("切换到圆形");
+                    }
+                    TrayMenuAction::ShapeEllipse => {
+                        self.event_handler.shape_mask_mut().set_shape(ShapeType::Ellipse);
+                        if let Err(e) = self.event_handler.render_engine_mut().set_mask(self.event_handler.shape_mask()) {
+                            error!("设置遮罩失败: {}", e);
+                        }
+                        info!("切换到椭圆形");
+                    }
+                    TrayMenuAction::ShapeRectangle => {
+                        self.event_handler.shape_mask_mut().set_shape(ShapeType::Rectangle);
+                        if let Err(e) = self.event_handler.render_engine_mut().set_mask(self.event_handler.shape_mask()) {
+                            error!("设置遮罩失败: {}", e);
+                        }
+                        info!("切换到矩形");
+                    }
+                    TrayMenuAction::ShapeRoundedRectangle => {
+                        self.event_handler.shape_mask_mut().set_shape(ShapeType::RoundedRectangle { radius: 20.0 });
+                        if let Err(e) = self.event_handler.render_engine_mut().set_mask(self.event_handler.shape_mask()) {
+                            error!("设置遮罩失败: {}", e);
+                        }
+                        info!("切换到圆角矩形");
+                    }
+                    TrayMenuAction::ShapeHeart => {
+                        self.event_handler.shape_mask_mut().set_shape(ShapeType::Heart);
+                        if let Err(e) = self.event_handler.render_engine_mut().set_mask(self.event_handler.shape_mask()) {
+                            error!("设置遮罩失败: {}", e);
+                        }
+                        info!("切换到心形");
+                    }
+                    TrayMenuAction::ResetPosition => {
+                        self.event_handler.window_manager_mut().set_position(100.0, 100.0);
+                        info!("重置窗口位置");
+                    }
+                    TrayMenuAction::ResetRotation => {
+                        self.event_handler.window_manager_mut().set_rotation(0.0);
+                        info!("重置窗口旋转");
+                    }
+                    TrayMenuAction::ResetSize => {
+                        self.event_handler.window_manager_mut().set_size(400, 400);
+                        info!("重置窗口大小");
+                    }
+                    TrayMenuAction::ShowInfo => {
+                        let window_size = self.event_handler.window_manager().size();
+                        let window_position = self.event_handler.window_manager().position();
+                        let rotation = self.event_handler.window_manager().rotation();
+                        let current_device = self.event_handler.camera_manager().current_device()
+                            .map(|d| d.name.as_str())
+                            .unwrap_or("未知");
+                        
+                        info!("=== 当前状态 ===");
+                        info!("形状: {:?}", self.event_handler.shape_mask().shape_type());
+                        info!("尺寸: {}x{}", window_size.width, window_size.height);
+                        info!("位置: ({:.0}, {:.0})", window_position.x, window_position.y);
+                        info!("旋转: {:.1}°", rotation);
+                        info!("摄像头: {}", current_device);
+                        info!("================");
+                    }
+                    TrayMenuAction::Quit => {
+                        info!("用户从托盘菜单请求退出");
+                        self.event_handler.window_manager_mut().close();
+                    }
+                }
             }
         }
     }
@@ -627,6 +722,9 @@ async fn run_application() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         }
                         WindowEvent::RedrawRequested => {
+                            // 处理托盘菜单事件
+                            app.handle_tray_events();
+                            
                             // 渲染一帧
                             if let Err(_e) = app.render_frame() {
                                 #[cfg(debug_assertions)]
@@ -654,6 +752,9 @@ async fn run_application() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             Event::AboutToWait => {
+                // 处理托盘菜单事件
+                app.handle_tray_events();
+                
                 // 请求重绘以维持目标帧率
                 app.window().request_redraw();
             }

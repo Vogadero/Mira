@@ -69,6 +69,9 @@ tokio = { version = "1.0", features = ["rt", "rt-multi-thread"] }
 # 系统信息
 num_cpus = "1.0"
 
+# 系统托盘图标
+tray-icon = "0.14"
+
 [build-dependencies]
 vergen = { version = "8.0", features = ["build", "git", "gitcl"] }
 
