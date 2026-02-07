@@ -2,10 +2,10 @@
 //
 // 提供系统托盘图标和右键菜单功能
 
-use log::{debug, info};
+use log::{debug, info, warn};
 use tray_icon::{
     menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu},
-    TrayIcon, TrayIconBuilder,
+    Icon, TrayIcon, TrayIconBuilder,
 };
 
 /// 托盘图标管理器
@@ -29,6 +29,46 @@ pub struct TrayManager {
 }
 
 impl TrayManager {
+    /// 创建默认图标（一个简单的圆形摄像头图标）
+    fn create_default_icon() -> Result<Icon, String> {
+        // 创建一个 32x32 的 RGBA 图标
+        let size = 32;
+        let mut rgba = vec![0u8; (size * size * 4) as usize];
+        
+        let center = size as f32 / 2.0;
+        let radius = 12.0;
+        
+        for y in 0..size {
+            for x in 0..size {
+                let dx = x as f32 - center;
+                let dy = y as f32 - center;
+                let distance = (dx * dx + dy * dy).sqrt();
+                
+                let idx = ((y * size + x) * 4) as usize;
+                
+                if distance <= radius {
+                    // 内圆 - 蓝色（代表摄像头镜头）
+                    rgba[idx] = 64;      // R
+                    rgba[idx + 1] = 128; // G
+                    rgba[idx + 2] = 255; // B
+                    rgba[idx + 3] = 255; // A
+                } else if distance <= radius + 2.0 {
+                    // 外圈 - 白色边框
+                    rgba[idx] = 255;     // R
+                    rgba[idx + 1] = 255; // G
+                    rgba[idx + 2] = 255; // B
+                    rgba[idx + 3] = 255; // A
+                } else {
+                    // 透明背景
+                    rgba[idx + 3] = 0;
+                }
+            }
+        }
+        
+        Icon::from_rgba(rgba, size, size)
+            .map_err(|e| format!("创建图标失败: {}", e))
+    }
+    
     /// 创建托盘管理器
     pub fn new() -> Result<Self, String> {
         info!("创建系统托盘图标");
@@ -74,10 +114,14 @@ impl TrayManager {
         let quit = MenuItem::new("退出", true, None);
         menu.append(&quit).map_err(|e| format!("添加菜单项失败: {}", e))?;
         
-        // 创建托盘图标（使用默认图标）
+        // 创建一个简单的图标（32x32 RGBA）
+        let icon = Self::create_default_icon()?;
+        
+        // 创建托盘图标
         let tray_icon = TrayIconBuilder::new()
             .with_menu(Box::new(menu.clone()))
-            .with_tooltip("Mira - 桌面摄像精灵")
+            .with_tooltip("Mira - 桌面摄像精灵\n右键点击显示菜单")
+            .with_icon(icon)
             .build()
             .map_err(|e| format!("创建托盘图标失败: {}", e))?;
         
