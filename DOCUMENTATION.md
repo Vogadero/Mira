@@ -64,6 +64,12 @@
   - 失败处理流程
   - 工作流架构说明
 
+- **[.github/workflows/README.md](.github/workflows/README.md)** - GitHub Actions 说明
+  - 工作流触发条件
+  - Jobs 执行条件详解
+  - 使用场景示例
+  - 常见问题解答
+
 - **[RELEASE_NOTES.md](RELEASE_NOTES.md)** - 发布说明
   - 如何获取构建版本
   - 支持的平台
