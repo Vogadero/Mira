@@ -341,6 +341,13 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
+        ref: ${{ needs.auto-tag.outputs.new_tag || github.ref }}
+    
+    - name: Fetch latest tags
+      if: needs.auto-tag.outputs.new_tag != ''
+      run: |
+        git fetch --tags --force
+        echo "Fetched latest tags, including: ${{ needs.auto-tag.outputs.new_tag }}"
     
     - name: Download Windows artifact
       uses: actions/download-artifact@v4
@@ -407,6 +414,7 @@ jobs:
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
+        tag_name: ${{ steps.get_version.outputs.tag_name }}
         files: |
           ./artifacts/mira-windows-x64.zip
           ./artifacts/mira-macos-x64.tar.gz

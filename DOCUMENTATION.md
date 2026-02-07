@@ -70,6 +70,12 @@
   - 使用场景示例
   - 常见问题解答
 
+- **[.github/workflows/TROUBLESHOOTING.md](.github/workflows/TROUBLESHOOTING.md)** - 故障排除指南
+  - 常见错误及解决方案
+  - 调试技巧
+  - 工作流执行流程
+  - 快速检查清单
+
 - **[RELEASE_NOTES.md](RELEASE_NOTES.md)** - 发布说明
   - 如何获取构建版本
   - 支持的平台
