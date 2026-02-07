@@ -1,0 +1,146 @@
+name: Auto Tag and Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+
+jobs:
+  auto-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整历史以便获取所有标签
+      
+      - name: Get latest tag
+        id: get_latest_tag
+        run: |
+          # 获取最新的标签
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "Latest tag: $LATEST_TAG"
+      
+      - name: Calculate new version
+        id: calc_version
+        run: |
+          LATEST_TAG="${{ steps.get_latest_tag.outputs.latest_tag }}"
+          
+          # 移除 'v' 前缀
+          VERSION=${LATEST_TAG#v}
+          
+          # 分割版本号
+          IFS='.' read -r -a VERSION_PARTS <<< "$VERSION"
+          MAJOR="${VERSION_PARTS[0]:-0}"
+          MINOR="${VERSION_PARTS[1]:-0}"
+          PATCH="${VERSION_PARTS[2]:-0}"
+          
+          # 确定版本提升类型
+          BUMP_TYPE="${{ github.event.inputs.version_bump || 'patch' }}"
+          
+          # 计算新版本
+          case $BUMP_TYPE in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+          
+          NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_VERSION"
+      
+      - name: Check if should create tag
+        id: should_tag
+        run: |
+          # 检查最近的提交消息
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          
+          # 如果是手动触发或提交消息包含 [release]，则创建标签
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]] || [[ "$COMMIT_MSG" == *"[release]"* ]]; then
+            echo "should_create_tag=true" >> $GITHUB_OUTPUT
+            echo "Will create new tag"
+          else
+            echo "should_create_tag=false" >> $GITHUB_OUTPUT
+            echo "Skipping tag creation (no [release] in commit message)"
+          fi
+      
+      - name: Update Cargo.toml version
+        if: steps.should_tag.outputs.should_create_tag == 'true'
+        run: |
+          NEW_VERSION="${{ steps.calc_version.outputs.new_version }}"
+          VERSION_NUMBER=${NEW_VERSION#v}
+          
+          # 更新 Cargo.toml 中的版本号
+          sed -i "s/^version = \".*\"/version = \"$VERSION_NUMBER\"/" Cargo.toml
+          
+          echo "Updated Cargo.toml to version $VERSION_NUMBER"
+      
+      - name: Commit version bump
+        if: steps.should_tag.outputs.should_create_tag == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add Cargo.toml
+          git commit -m "chore: bump version to ${{ steps.calc_version.outputs.new_version }}" || echo "No changes to commit"
+          git push origin ${{ github.ref_name }} || echo "Nothing to push"
+      
+      - name: Create and push tag
+        if: steps.should_tag.outputs.should_create_tag == 'true'
+        run: |
+          NEW_VERSION="${{ steps.calc_version.outputs.new_version }}"
+          
+          # 创建标签
+          git tag -a "$NEW_VERSION" -m "Release $NEW_VERSION"
+          
+          # 推送标签
+          git push origin "$NEW_VERSION"
+          
+          echo "✅ Created and pushed tag: $NEW_VERSION"
+      
+      - name: Summary
+        run: |
+          echo "## Auto Tag Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Latest Tag**: ${{ steps.get_latest_tag.outputs.latest_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **New Version**: ${{ steps.calc_version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Should Create Tag**: ${{ steps.should_tag.outputs.should_create_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ steps.should_tag.outputs.should_create_tag }}" == "true" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Tag created successfully!**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The release workflow will be triggered automatically." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "ℹ️ **No tag created**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "To create a release, either:" >> $GITHUB_STEP_SUMMARY
+            echo "1. Include `[release]` in your commit message" >> $GITHUB_STEP_SUMMARY
+            echo "2. Manually trigger this workflow from the Actions tab" >> $GITHUB_STEP_SUMMARY
+          fi

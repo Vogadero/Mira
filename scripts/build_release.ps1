@@ -41,7 +41,14 @@ try {
 
 # 构建发布版本
 Write-Host "开始构建发布版本..." -ForegroundColor Cyan
+Write-Host "注意: 发布版本将隐藏控制台窗口" -ForegroundColor Yellow
+Write-Host "      如需显示控制台，请设置: `$env:MIRA_SHOW_CONSOLE='true'" -ForegroundColor Yellow
 $buildStart = Get-Date
+
+# 确保控制台隐藏（除非明确设置）
+if (-not $env:MIRA_SHOW_CONSOLE) {
+    $env:MIRA_SHOW_CONSOLE = "false"
+}
 
 try {
     if ($Verbose) {

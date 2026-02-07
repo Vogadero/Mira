@@ -37,6 +37,8 @@ jobs:
     
     - name: Build release
       run: |
+        # 确保发布版本隐藏控制台窗口
+        $env:MIRA_SHOW_CONSOLE = "false"
         cargo build --release --verbose --bin mira
     
     - name: Create distribution package

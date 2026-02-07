@@ -85,6 +85,8 @@ echo -e "${CYAN}目标平台: $PLATFORM${NC}"
 
 # 构建发布版本
 echo -e "${CYAN}开始构建发布版本...${NC}"
+echo -e "${YELLOW}注意: macOS/Linux 平台不需要控制台隐藏配置${NC}"
+echo -e "${YELLOW}      控制台隐藏功能仅适用于 Windows 平台${NC}"
 BUILD_START=$(date +%s)
 
 if [ "$VERBOSE" = true ]; then

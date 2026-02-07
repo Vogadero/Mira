@@ -11,6 +11,10 @@ path = "src/lib.rs"
 name = "mira"
 path = "src/main.rs"
 
+# Windows 特定配置
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"
+
 [[example]]
 name = "camera_demo"
 path = "examples/camera_demo.rs"
