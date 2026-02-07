@@ -58,6 +58,12 @@
   - 工作流详解
   - 故障排除
 
+- **[WORKFLOW_DIAGRAM.md](WORKFLOW_DIAGRAM.md)** - 工作流程图
+  - 完整发布流程图
+  - 三种触发方式对比
+  - 失败处理流程
+  - 工作流架构说明
+
 - **[RELEASE_NOTES.md](RELEASE_NOTES.md)** - 发布说明
   - 如何获取构建版本
   - 支持的平台

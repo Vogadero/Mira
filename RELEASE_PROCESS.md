@@ -9,8 +9,13 @@ Mira 使用 GitHub Actions 实现完全自动化的构建和发布流程。
 ### 工作流程
 
 ```
-提交代码 → 自动构建 → 创建标签 → 自动发布
+提交代码 → 自动构建（所有平台）→ 构建成功 → 创建标签 → 自动发布
 ```
+
+**关键特性**：
+- ✅ 构建成功后才会打标签
+- ✅ 一个工作流完成所有步骤
+- ✅ 失败时不会创建标签或发布
 
 ## 发布新版本
 
@@ -26,20 +31,25 @@ git push origin main
 ```
 
 这将自动：
-1. 构建所有平台的版本
-2. 创建新的版本标签（自动递增 patch 版本）
-3. 创建 GitHub Release
-4. 上传所有构建产物
+1. ✅ 构建所有平台的版本（Windows、macOS、Linux）
+2. ✅ 等待所有构建成功
+3. ✅ 创建新的版本标签（自动递增 patch 版本）
+4. ✅ 创建 GitHub Release
+5. ✅ 上传所有构建产物
+
+**注意**：只有当所有平台构建成功后，才会创建标签和发布。
 
 ### 方法二：手动触发
 
 1. 访问 [Actions 页面](https://github.com/Vogadero/Mira/actions)
-2. 选择 "Auto Tag and Release" 工作流
+2. 选择 "Build and Release" 工作流
 3. 点击 "Run workflow"
-4. 选择版本提升类型：
-   - **patch**: 修复版本 (1.0.0 → 1.0.1)
-   - **minor**: 次要版本 (1.0.0 → 1.1.0)
-   - **major**: 主要版本 (1.0.0 → 2.0.0)
+4. 配置选项：
+   - **version_bump**: 选择版本提升类型
+     - **patch**: 修复版本 (1.0.0 → 1.0.1)
+     - **minor**: 次要版本 (1.0.0 → 1.1.0)
+     - **major**: 主要版本 (1.0.0 → 2.0.0)
+   - **create_release**: 勾选以创建发布
 5. 点击 "Run workflow" 确认
 
 ### 方法三：手动创建标签
@@ -52,7 +62,7 @@ git tag -a v1.0.0 -m "Release v1.0.0"
 git push origin v1.0.0
 ```
 
-这将触发自动构建和发布流程。
+这将触发构建和发布流程（跳过自动打标签步骤）。
 
 ## 版本号规范
 
@@ -118,18 +128,9 @@ v主版本号.次版本号.修订号
 
 ## 工作流详解
 
-### 1. Auto Tag and Release (`auto-tag.yml`)
+### Build and Release (`build.yml`)
 
-**触发条件**：
-- 推送到 main/master 分支（需要 `[release]` 标记）
-- 手动触发
-
-**功能**：
-- 自动计算新版本号
-- 更新 Cargo.toml 中的版本
-- 创建并推送 Git 标签
-
-### 2. Build and Release (`build.yml`)
+这是唯一的工作流文件，包含所有构建和发布逻辑。
 
 **触发条件**：
 - 推送到 main/master 分支
@@ -137,11 +138,52 @@ v主版本号.次版本号.修订号
 - Pull Request
 - 手动触发
 
-**功能**：
-- 构建 Windows、macOS、Linux 版本
+**工作流程**：
+
+#### 1. 构建阶段（并行执行）
+- **build-windows**: 构建 Windows x64 版本
+- **build-macos**: 构建 macOS x64/ARM64 版本
+- **build-linux**: 构建 Linux x64 版本
+
+每个构建任务：
+- 安装 Rust 工具链
+- 缓存依赖项
+- 编译 release 版本
 - 创建分发包
 - 上传构建产物
-- 创建 GitHub Release（仅标签触发时）
+
+#### 2. 自动打标签阶段（条件执行）
+- **auto-tag**: 仅在以下条件下运行：
+  - 是 push 事件（不是 PR）
+  - 不是标签推送
+  - 提交消息包含 `[release]` 或手动触发时勾选创建发布
+  - **所有构建任务成功**
+
+执行步骤：
+1. 获取最新标签
+2. 计算新版本号
+3. 更新 Cargo.toml
+4. 提交版本变更
+5. 创建并推送新标签
+
+#### 3. 发布阶段（条件执行）
+- **release**: 在以下条件下运行：
+  - 是标签推送 或 auto-tag 成功
+  - **所有构建任务成功**
+
+执行步骤：
+1. 下载所有平台的构建产物
+2. 创建压缩包
+3. 生成校验和
+4. 创建 GitHub Release
+5. 上传所有文件
+
+### 工作流优势
+
+1. **原子性**：构建失败不会创建标签
+2. **可靠性**：只有所有平台构建成功才发布
+3. **简洁性**：一个文件管理所有流程
+4. **灵活性**：支持多种触发方式
 
 ## 构建产物
 
@@ -230,10 +272,17 @@ git commit --allow-empty -m "chore: release bug fix [release]"
 git push origin main
 
 # 4. 自动流程会：
-#    - 创建 v1.0.1 标签
-#    - 构建所有平台
-#    - 创建 Release
+#    ✅ 构建 Windows、macOS、Linux 版本
+#    ✅ 等待所有构建成功
+#    ✅ 创建 v1.0.1 标签
+#    ✅ 创建 GitHub Release
+#    ✅ 上传所有构建产物
 ```
+
+**如果构建失败**：
+- ❌ 不会创建标签
+- ❌ 不会创建发布
+- ✅ 可以修复后重新推送
 
 ### 场景：新功能
 
@@ -249,12 +298,35 @@ git checkout main
 git merge feature/new-shape
 
 # 3. 手动触发发布
-# 访问 Actions 页面，选择 "minor" 版本提升
+# 访问 Actions 页面
+# 选择 "Build and Release" 工作流
+# 点击 "Run workflow"
+# 选择 version_bump: "minor"
+# 勾选 create_release
+# 点击 "Run workflow"
 
 # 4. 自动流程会：
-#    - 创建 v1.1.0 标签
-#    - 构建所有平台
-#    - 创建 Release
+#    ✅ 构建所有平台
+#    ✅ 等待构建成功
+#    ✅ 创建 v1.1.0 标签
+#    ✅ 创建 Release
+```
+
+### 场景：紧急修复（跳过自动标签）
+
+```bash
+# 1. 修复严重问题
+git add .
+git commit -m "fix: critical security issue"
+git push origin main
+
+# 2. 手动创建标签（立即发布）
+git tag -a v1.0.2 -m "Emergency security fix"
+git push origin v1.0.2
+
+# 3. 自动流程会：
+#    ✅ 构建所有平台
+#    ✅ 直接创建 Release（跳过 auto-tag）
 ```
 
 ## 相关文档

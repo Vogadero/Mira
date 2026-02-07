@@ -7,7 +7,22 @@ on:
       - 'v*'
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch:  # 允许手动触发
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'Version bump type (only for release)'
+        required: false
+        default: 'patch'
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+      create_release:
+        description: 'Create release after build'
+        required: false
+        default: false
+        type: boolean
 
 env:
   CARGO_TERM_COLOR: always
@@ -215,15 +230,112 @@ jobs:
         path: dist/
         retention-days: 30
 
-  release:
+  # 自动打标签（仅在构建成功后）
+  auto-tag:
     needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    # 只在 push 到 main/master 且不是标签推送时运行
+    if: |
+      github.event_name == 'push' && 
+      !startsWith(github.ref, 'refs/tags/') &&
+      (contains(github.event.head_commit.message, '[release]') || github.event.inputs.create_release == 'true')
+    permissions:
+      contents: write
+    outputs:
+      new_tag: ${{ steps.create_tag.outputs.new_tag }}
+      should_release: ${{ steps.create_tag.outputs.should_release }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Get latest tag
+        id: get_latest_tag
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "Latest tag: $LATEST_TAG"
+      
+      - name: Calculate new version
+        id: calc_version
+        run: |
+          LATEST_TAG="${{ steps.get_latest_tag.outputs.latest_tag }}"
+          VERSION=${LATEST_TAG#v}
+          
+          IFS='.' read -r -a VERSION_PARTS <<< "$VERSION"
+          MAJOR="${VERSION_PARTS[0]:-0}"
+          MINOR="${VERSION_PARTS[1]:-0}"
+          PATCH="${VERSION_PARTS[2]:-0}"
+          
+          BUMP_TYPE="${{ github.event.inputs.version_bump || 'patch' }}"
+          
+          case $BUMP_TYPE in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+          
+          NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_VERSION"
+      
+      - name: Update Cargo.toml version
+        id: update_version
+        run: |
+          NEW_VERSION="${{ steps.calc_version.outputs.new_version }}"
+          VERSION_NUMBER=${NEW_VERSION#v}
+          
+          sed -i "s/^version = \".*\"/version = \"$VERSION_NUMBER\"/" Cargo.toml
+          echo "Updated Cargo.toml to version $VERSION_NUMBER"
+      
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add Cargo.toml
+          git commit -m "chore: bump version to ${{ steps.calc_version.outputs.new_version }}" || echo "No changes to commit"
+          git push origin ${{ github.ref_name }} || echo "Nothing to push"
+      
+      - name: Create and push tag
+        id: create_tag
+        run: |
+          NEW_VERSION="${{ steps.calc_version.outputs.new_version }}"
+          
+          git tag -a "$NEW_VERSION" -m "Release $NEW_VERSION"
+          git push origin "$NEW_VERSION"
+          
+          echo "new_tag=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "should_release=true" >> $GITHUB_OUTPUT
+          echo "✅ Created and pushed tag: $NEW_VERSION"
+
+  release:
+    needs: [build-windows, build-macos, build-linux, auto-tag]
+    runs-on: ubuntu-latest
+    # 当有新标签或 auto-tag 成功时运行
+    if: |
+      always() &&
+      (startsWith(github.ref, 'refs/tags/v') || needs.auto-tag.outputs.should_release == 'true') &&
+      needs.build-windows.result == 'success' &&
+      needs.build-macos.result == 'success' &&
+      needs.build-linux.result == 'success'
     permissions:
       contents: write
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
     
     - name: Download Windows artifact
       uses: actions/download-artifact@v4
@@ -243,12 +355,22 @@ jobs:
         name: mira-linux-x64
         path: ./linux-dist
     
-    - name: Extract version from tag
+    - name: Determine version
       id: get_version
       run: |
-        VERSION=${GITHUB_REF#refs/tags/v}
+        if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          # 从标签获取版本
+          VERSION=${GITHUB_REF#refs/tags/v}
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+        else
+          # 从 auto-tag 输出获取版本
+          TAG_NAME="${{ needs.auto-tag.outputs.new_tag }}"
+          VERSION=${TAG_NAME#v}
+        fi
+        
         echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "Version: $VERSION"
+        echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+        echo "Version: $VERSION, Tag: $TAG_NAME"
     
     - name: Create release packages
       run: |
