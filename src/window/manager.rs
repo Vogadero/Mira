@@ -231,41 +231,21 @@ impl WindowManager {
         info!("开始拖拽，偏移量: ({:.1}, {:.1})", self.drag_offset.x, self.drag_offset.y);
     }
     
-    /// 更新拖拽位置（零内存分配优化版本，完全跳过边界检查）
+    /// 更新拖拽位置（简化版本，避免漂移）
     pub fn update_drag(&mut self, cursor_pos: PhysicalPosition<f64>) {
         if self.is_dragging {
-            // 使用预分配的计算缓冲区，避免临时变量分配
-            self.drag_calculation_buffer.clear();
-            
             // 计算新位置（考虑拖拽偏移量）
             let new_x = cursor_pos.x - self.drag_offset.x;
             let new_y = cursor_pos.y - self.drag_offset.y;
             
-            // 存储计算结果到缓冲区
-            self.drag_calculation_buffer.push(new_x);
-            self.drag_calculation_buffer.push(new_y);
+            let new_pos = PhysicalPosition::new(new_x, new_y);
             
-            let new_pos = PhysicalPosition::new(
-                self.drag_calculation_buffer[0],
-                self.drag_calculation_buffer[1]
-            );
-            
-            // 进一步降低阈值，只有位置真正改变时才更新（避免重复调用）
-            if (new_pos.x - self.position.x).abs() > 0.05 || (new_pos.y - self.position.y).abs() > 0.05 {
-                // 记录位置历史（用于平滑处理，但限制历史长度避免内存增长）
-                if self.position_history.len() >= self.position_history.capacity() {
-                    // 移除最旧的位置，保持固定容量
-                    self.position_history.remove(0);
-                }
-                self.position_history.push(new_pos);
-                
+            // 只有位置真正改变时才更新（避免重复调用）
+            if (new_pos.x - self.position.x).abs() > 0.5 || (new_pos.y - self.position.y).abs() > 0.5 {
                 self.position = new_pos;
                 
-                // 直接设置位置，完全跳过边界检查（性能优先）
+                // 直接设置位置，不做边界检查（拖拽时允许移出屏幕）
                 self.window.set_outer_position(new_pos);
-                
-                // 标记需要异步边界检查（但不阻塞拖拽）
-                self.schedule_async_boundary_check(new_pos);
             }
         }
     }

@@ -53,6 +53,9 @@ struct MiraApp {
     // 性能优化
     last_cleanup: Instant,
     cleanup_interval: Duration,
+    
+    // 应用状态
+    should_quit: bool,
 }
 
 impl MiraApp {
@@ -272,6 +275,9 @@ impl MiraApp {
             // 性能优化初始化
             last_cleanup: Instant::now(),
             cleanup_interval: Duration::from_secs(60), // 每分钟清理一次
+            
+            // 应用状态初始化
+            should_quit: false,
         })
     }
 
@@ -336,6 +342,18 @@ impl MiraApp {
                         self.event_handler.window_manager_mut().set_size(400, 400);
                         info!("重置窗口大小");
                     }
+                    TrayMenuAction::RotateLeft => {
+                        let old_rotation = self.event_handler.window_manager().rotation();
+                        self.event_handler.window_manager_mut().rotate(-15.0);
+                        let new_rotation = self.event_handler.window_manager().rotation();
+                        info!("逆时针旋转 15°: {:.1}° -> {:.1}°", old_rotation, new_rotation);
+                    }
+                    TrayMenuAction::RotateRight => {
+                        let old_rotation = self.event_handler.window_manager().rotation();
+                        self.event_handler.window_manager_mut().rotate(15.0);
+                        let new_rotation = self.event_handler.window_manager().rotation();
+                        info!("顺时针旋转 15°: {:.1}° -> {:.1}°", old_rotation, new_rotation);
+                    }
                     TrayMenuAction::ShowInfo => {
                         let window_size = self.event_handler.window_manager().size();
                         let window_position = self.event_handler.window_manager().position();
@@ -344,6 +362,7 @@ impl MiraApp {
                             .map(|d| d.name.as_str())
                             .unwrap_or("未知");
                         
+                        // 在日志中显示
                         info!("=== 当前状态 ===");
                         info!("形状: {:?}", self.event_handler.shape_mask().shape_type());
                         info!("尺寸: {}x{}", window_size.width, window_size.height);
@@ -351,10 +370,21 @@ impl MiraApp {
                         info!("旋转: {:.1}°", rotation);
                         info!("摄像头: {}", current_device);
                         info!("================");
+                        
+                        // 在控制台也显示（如果有控制台窗口）
+                        println!("\n=== Mira 当前状态 ===");
+                        println!("形状: {:?}", self.event_handler.shape_mask().shape_type());
+                        println!("尺寸: {}x{}", window_size.width, window_size.height);
+                        println!("位置: ({:.0}, {:.0})", window_position.x, window_position.y);
+                        println!("旋转: {:.1}°", rotation);
+                        println!("摄像头: {}", current_device);
+                        println!("====================\n");
                     }
                     TrayMenuAction::Quit => {
                         info!("用户从托盘菜单请求退出");
-                        self.event_handler.window_manager_mut().close();
+                        // 设置退出标志
+                        self.should_quit = true;
+                        info!("已设置退出标志，应用将在下一帧退出");
                     }
                 }
             }
@@ -750,6 +780,13 @@ async fn run_application() -> Result<(), Box<dyn std::error::Error>> {
             Event::AboutToWait => {
                 // 处理托盘菜单事件
                 app.handle_tray_events();
+                
+                // 检查是否应该退出
+                if app.should_quit {
+                    info!("检测到退出标志，正在退出应用");
+                    event_loop.exit();
+                    return;
+                }
                 
                 // 请求重绘以维持目标帧率
                 app.window().request_redraw();

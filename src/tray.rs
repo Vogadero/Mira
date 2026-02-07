@@ -24,6 +24,9 @@ pub struct TrayManager {
     reset_rotation: MenuItem,
     reset_size: MenuItem,
     
+    rotate_left: MenuItem,
+    rotate_right: MenuItem,
+    
     show_info: MenuItem,
     quit: MenuItem,
 }
@@ -106,6 +109,17 @@ impl TrayManager {
         menu.append(&window_menu).map_err(|e| format!("添加子菜单失败: {}", e))?;
         menu.append(&PredefinedMenuItem::separator()).map_err(|e| format!("添加分隔符失败: {}", e))?;
         
+        // 旋转控制子菜单
+        let rotate_menu = Submenu::new("旋转控制", true);
+        let rotate_left = MenuItem::new("逆时针旋转 15° (Ctrl+滚轮下)", true, None);
+        let rotate_right = MenuItem::new("顺时针旋转 15° (Ctrl+滚轮上)", true, None);
+        
+        rotate_menu.append(&rotate_left).map_err(|e| format!("添加菜单项失败: {}", e))?;
+        rotate_menu.append(&rotate_right).map_err(|e| format!("添加菜单项失败: {}", e))?;
+        
+        menu.append(&rotate_menu).map_err(|e| format!("添加子菜单失败: {}", e))?;
+        menu.append(&PredefinedMenuItem::separator()).map_err(|e| format!("添加分隔符失败: {}", e))?;
+        
         // 其他功能
         let show_info = MenuItem::new("显示信息", true, None);
         menu.append(&show_info).map_err(|e| format!("添加菜单项失败: {}", e))?;
@@ -138,6 +152,8 @@ impl TrayManager {
             reset_position,
             reset_rotation,
             reset_size,
+            rotate_left,
+            rotate_right,
             show_info,
             quit,
         })
@@ -164,6 +180,10 @@ impl TrayManager {
                 return Some(TrayMenuAction::ResetRotation);
             } else if event.id == self.reset_size.id() {
                 return Some(TrayMenuAction::ResetSize);
+            } else if event.id == self.rotate_left.id() {
+                return Some(TrayMenuAction::RotateLeft);
+            } else if event.id == self.rotate_right.id() {
+                return Some(TrayMenuAction::RotateRight);
             } else if event.id == self.show_info.id() {
                 return Some(TrayMenuAction::ShowInfo);
             } else if event.id == self.quit.id() {
@@ -186,6 +206,8 @@ pub enum TrayMenuAction {
     ResetPosition,
     ResetRotation,
     ResetSize,
+    RotateLeft,
+    RotateRight,
     ShowInfo,
     Quit,
 }
