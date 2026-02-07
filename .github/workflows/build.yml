@@ -172,6 +172,7 @@ jobs:
           libgtk-3-dev \
           libglib2.0-dev \
           libappindicator3-dev \
+          libxdo-dev \
           bc
     
     - name: Build release

@@ -436,9 +436,8 @@ impl EventHandler {
                 info!("开始拖拽窗口，鼠标位置: ({:.1}, {:.1})", position.x, position.y);
             }
             MouseButton::Right => {
-                // 右键显示上下文菜单
-                info!("右键点击 - 显示上下文菜单");
-                self.show_context_menu(position);
+                // 右键显示上下文菜单 - 已禁用，使用托盘菜单代替
+                debug!("右键点击 - 上下文菜单已禁用，请使用系统托盘菜单");
             }
             _ => {
                 debug!("忽略其他鼠标按下事件: {:?}", button);

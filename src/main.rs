@@ -207,9 +207,8 @@ impl MiraApp {
             config_manager,
         );
 
-        // 注意：菜单渲染器初始化由于 Rust 借用检查器的限制暂时跳过
-        // 应用将使用简单文本菜单作为替代方案
-        info!("使用简单文本菜单（视觉菜单渲染器暂时不可用）");
+        // 注意：菜单渲染器已禁用，使用系统托盘菜单代替
+        info!("使用系统托盘菜单（右键点击托盘图标显示菜单）");
 
         let initialization_time = start_time.elapsed();
         info!("Mira 应用程序初始化完成，耗时: {:.2}秒", initialization_time.as_secs_f32());
