@@ -40,7 +40,7 @@ Mira is a cross-platform desktop camera application developed in Rust, featuring
 - ✅ Error recovery: Auto-handle device disconnection and reconnection
 - ✅ Permission management: Friendly permission prompts and error handling
 
-#### 🪟 Window Interaction
+#### 📟 Window Interaction
 - ✅ Always on top: Stay above all windows
 - ✅ Transparent background: Perfect desktop integration
 - ✅ Drag to move: Left-click drag to move window (optimized, no drift)
