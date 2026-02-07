@@ -144,6 +144,132 @@ cargo build --release
 ./scripts/build_release.sh
 ```
 
+## Linux 环境配置
+
+### 1. 安装系统依赖
+
+**Ubuntu/Debian:**
+
+```bash
+# 更新包列表
+sudo apt-get update
+
+# 安装必要的系统库
+sudo apt-get install -y \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    libudev-dev \
+    libv4l-dev \
+    libgtk-3-dev \
+    libglib2.0-dev \
+    libappindicator3-dev \
+    git \
+    curl \
+    bc
+```
+
+**Fedora/RHEL/CentOS:**
+
+```bash
+# 安装必要的系统库
+sudo dnf install -y \
+    gcc \
+    gcc-c++ \
+    make \
+    pkg-config \
+    openssl-devel \
+    systemd-devel \
+    v4l-utils-devel \
+    gtk3-devel \
+    glib2-devel \
+    libappindicator-gtk3-devel \
+    git \
+    curl \
+    bc
+```
+
+**Arch Linux:**
+
+```bash
+# 安装必要的系统库
+sudo pacman -S --needed \
+    base-devel \
+    pkg-config \
+    openssl \
+    systemd \
+    v4l-utils \
+    gtk3 \
+    glib2 \
+    libappindicator-gtk3 \
+    git \
+    curl \
+    bc
+```
+
+### 2. 安装 Rust 工具链
+
+```bash
+# 下载并安装 Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# 重新加载环境变量
+source ~/.cargo/env
+
+# 验证安装
+rustc --version
+cargo --version
+```
+
+### 3. 验证环境
+
+```bash
+# 检查所有工具
+rustc --version
+cargo --version
+git --version
+pkg-config --version
+
+# 验证 GTK 库
+pkg-config --modversion gtk+-3.0
+pkg-config --modversion glib-2.0
+```
+
+### 4. 克隆和构建项目
+
+```bash
+# 克隆项目
+git clone https://github.com/Vogadero/Mira.git mira
+cd mira
+
+# 给构建脚本执行权限
+chmod +x scripts/build_release.sh
+
+# 构建项目
+cargo build --release
+
+# 运行构建脚本
+./scripts/build_release.sh
+```
+
+### 5. Linux 特别说明
+
+**系统托盘图标依赖:**
+- Mira 使用系统托盘图标功能，在 Linux 上需要 GTK3 和 AppIndicator 支持
+- 如果你的桌面环境不支持系统托盘，托盘图标可能不会显示，但应用仍可正常使用
+
+**摄像头权限:**
+```bash
+# 确保你的用户在 video 组中
+sudo usermod -a -G video $USER
+
+# 重新登录以使更改生效
+```
+
+**Wayland 支持:**
+- Mira 在 Wayland 和 X11 上都能运行
+- 某些功能在 Wayland 上可能有限制（如窗口拖拽）
+
 ## Docker 环境配置（可选）
 
 如果你更喜欢使用 Docker，这里提供配置：

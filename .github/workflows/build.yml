@@ -169,6 +169,9 @@ jobs:
           libssl-dev \
           libudev-dev \
           libv4l-dev \
+          libgtk-3-dev \
+          libglib2.0-dev \
+          libappindicator3-dev \
           bc
     
     - name: Build release
